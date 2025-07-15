@@ -121,16 +121,15 @@ class ConstellationExperience {
             south_28: null
         };
         this.modelPaths = {
-            center: './models/ChonSangYolChaBunYaJiDo_Plat_Center.glb',
-            east: './models/ChonSangYolChaBunYaJiDo_Plat_East.glb',
-            west: './models/ChonSangYolChaBunYaJiDo_Plat_West.glb',
-            north: './models/ChonSangYolChaBunYaJiDo_Plat_North.glb',
-            south: './models/ChonSangYolChaBunYaJiDo_Plat_South.glb',
-            // _28 모델 추가
-            east_28: './models/ChonSangYolChaBunYaJiDo_Plat_East_28.glb',
-            west_28: './models/ChonSangYolChaBunYaJiDo_Plat_West_28.glb',
-            north_28: './models/ChonSangYolChaBunYaJiDo_Plat_North_28.glb',
-            south_28: './models/ChonSangYolChaBunYaJiDo_Plat_South_28.glb'
+            center: 'models/ChonSangYolChaBunYaJiDo_Plat_Center.svg',
+            east: 'models/ChonSangYolChaBunYaJiDo_Plat_East.svg',
+            west: 'models/ChonSangYolChaBunYaJiDo_Plat_West.svg',
+            north: 'models/ChonSangYolChaBunYaJiDo_Plat_North.svg',
+            south: 'models/ChonSangYolChaBunYaJiDo_Plat_South.svg',
+            east_28: 'models/ChonSangYolChaBunYaJiDo_Plat_East_28.svg',
+            west_28: 'models/ChonSangYolChaBunYaJiDo_Plat_West_28.svg',
+            north_28: 'models/ChonSangYolChaBunYaJiDo_Plat_North_28.svg',
+            south_28: 'models/ChonSangYolChaBunYaJiDo_Plat_South_28.svg'
         };
         this.currentDirection = 'center';
         
@@ -201,20 +200,20 @@ class ConstellationExperience {
         // _28 모델 선택 시 카메라가 이동할 위치 (Z값은 고정, XY만 이동)
         this.zoomedCameraPositions = {
             east_28: { 
-                position: { x: -0.5, y: 0.7, z: 1.5 },    // 동쪽: 오른쪽으로 이동
-                lookAt: { x: 0.5, y: 0, z: 0 }         // 같은 X좌표를 바라봄
+                position: { x: 0.0, y: 0.0, z: 0.0 },    // 동쪽: 오른쪽으로 이동
+                lookAt: { x: 0.0, y: 0, z: 0 }         // 같은 X좌표를 바라봄
             },
             west_28: { 
-                position: { x: 0.5, y: -0.7, z: 1.5 },   // 서쪽: 왼쪽으로 이동
-                lookAt: { x: -0.5, y: 0, z: 0 }
+                position: { x: 0.0, y: 0.0, z: 0.0 },   // 서쪽: 왼쪽으로 이동
+                lookAt: { x: 0.0, y: 0, z: 0 }
             },
             north_28: { 
-                position: { x: 0.5, y: 0.7, z: 1.5 },    // 북쪽: 위쪽으로 이동
-                lookAt: { x: 0, y: 0.5, z: 0 }
+                position: { x: 0.0, y: 0.0, z: 0.0 },    // 북쪽: 위쪽으로 이동
+                lookAt: { x: 0, y: 0.0, z: 0 }
             },
             south_28: { 
-                position: { x: -0.5, y: -0.7, z: 1.5 },   // 남쪽: 아래쪽으로 이동
-                lookAt: { x: 0, y: -0.5, z: 0 }
+                position: { x: 0.0, y: 0.0, z: 0.0 },   // 남쪽: 아래쪽으로 이동
+                lookAt: { x: 0, y: 0.0, z: 0 }
             }
         };
 
@@ -332,120 +331,282 @@ class ConstellationExperience {
     }
 
     async loadAllModels() {
-        const loader = new THREE.GLTFLoader();
+        console.log('=== SVG 모델 로딩 시작 ===');
         
-        // 모든 모델 로드
+        // 모든 모델을 텍스처로 로드
         for (const [direction, path] of Object.entries(this.modelPaths)) {
             try {
-                const gltf = await new Promise((resolve, reject) => {
-                    loader.load(
-                        path,
-                        (gltf) => resolve(gltf),
-                        (progressEvent) => {
-                            const percent = (progressEvent.loaded / progressEvent.total * 100).toFixed(0);
-                            const bar = document.getElementById('loading-bar');
-                            if (bar) {
-                            bar.style.width = `${percent}%`;
-                            }
-                            console.log(`Loading ${direction}: ${percent}%`);
-                        },
-                        (error) => reject(error)
-                    );
+                console.log(`${direction} 로딩: ${path}`);
+                
+                // 이미지로 SVG 로드
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                
+                await new Promise((resolve, reject) => {
+                    img.onload = () => {
+                        console.log(`${direction} 이미지 로드 성공`);
+                        
+                        // 캔버스에 그리기
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 1024;
+                        canvas.height = 1024;
+                        const ctx = canvas.getContext('2d');
+                        
+                        // 투명 배경
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        
+                        // SVG 이미지 그리기 (중앙 정렬)
+                        const scale = Math.min(
+                            canvas.width / img.width,
+                            canvas.height / img.height
+                        ) * 0.9;
+                        
+                        const x = (canvas.width - img.width * scale) / 2;
+                        const y = (canvas.height - img.height * scale) / 2;
+                        
+                        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                        
+                        // 텍스처 생성
+                        const texture = new THREE.CanvasTexture(canvas);
+                        texture.needsUpdate = true;
+                        
+                        // 원형 지오메트리 사용 (천문도에 더 적합)
+                        const geometry = new THREE.CircleGeometry(1, 64);
+                        const material = new THREE.MeshPhysicalMaterial({
+                            map: texture,
+                            transparent: true,
+                            side: THREE.DoubleSide,
+                            alphaTest: 0.1,
+                            metalness: 0.3,
+                            roughness: 0.4,
+                            clearcoat: 0.2,
+                            clearcoatRoughness: 0.2
+                        });
+                        
+                        const mesh = new THREE.Mesh(geometry, material);
+                        mesh.name = direction;
+                        
+                        // 약간의 두께감을 위한 테두리 추가
+                        const ringGeometry = new THREE.RingGeometry(1.95, 2.05, 64);
+                        const ringMaterial = new THREE.MeshPhysicalMaterial({
+                            color: 0x8B7355,
+                            metalness: 0.8,
+                            roughness: 0.2,
+                            side: THREE.DoubleSide
+                        });
+                        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                        ring.position.z = 0.01;
+                        
+                        // 그룹으로 감싸기
+                        const group = new THREE.Group();
+                        group.add(mesh);
+                        group.add(ring);
+                        
+                        // 그림자 설정
+                        mesh.castShadow = true;
+                        mesh.receiveShadow = true;
+                        ring.castShadow = true;
+                        ring.receiveShadow = true;
+                        
+                        this.models[direction] = group;
+                        
+                        // _28 모델은 더 크게
+                        if (direction.includes('_28')) {
+                            this.models[direction].scale.set(1, 1, 1);
+                        } else {
+                            this.models[direction].scale.set(1, 1, 1);
+                        }
+                        
+                        // Z축 180도 회전
+                        this.models[direction].rotation.z = Math.PI;
+                        
+                        // center 모델은 즉시 표시
+                        if (direction === 'center') {
+                            this.scene.add(this.models[direction]);
+                            this.currentModel = this.models[direction];
+                            
+                            // 초기 회전 애니메이션
+                            gsap.from(this.currentModel.rotation, {
+                                z: Math.PI * 2,
+                                duration: 2,
+                                ease: "power2.out"
+                            });
+                            
+                            // 초기 스케일 애니메이션
+                            gsap.from(this.currentModel.scale, {
+                                x: 0,
+                                y: 0,
+                                z: 0,
+                                duration: 1,
+                                ease: "back.out(1.7)"
+                            });
+                        }
+                        
+                        console.log(`✓ ${direction} 모델 로드 완료`);
+                        resolve();
+                    };
+                    
+                    img.onerror = (error) => {
+                        console.error(`${direction} 이미지 로드 실패:`, error);
+                        reject(error);
+                    };
+                    
+                    // 이미지 소스 설정
+                    img.src = path;
                 });
                 
-                this.models[direction] = gltf.scene;
+            } catch (error) {
+                console.error(`${direction} 로드 실패:`, error);
+                this.createFallbackModel(direction);
+            }
+        }
+        
+        // 로드 완료 확인
+        if (!this.currentModel) {
+            console.log('center 모델이 없음, 폴백 생성');
+            this.createFallbackModel('center');
+        }
+        
+        console.log('=== 모든 모델 로딩 완료 ===');
+    }
+
+    createSVGPlane(direction, svgPath) {
+        const textureLoader = new THREE.TextureLoader();
+        
+        textureLoader.load(
+            svgPath,
+            (texture) => {
+                const geometry = new THREE.PlaneGeometry(4, 4);
+                const material = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
                 
-                // _28 모델은 더 큰 스케일로 설정
+                const plane = new THREE.Mesh(geometry, material);
+                plane.name = `${direction}_texture`;
+                
+                this.models[direction] = plane;
+                
                 if (direction.includes('_28')) {
-                    this.models[direction].scale.set(1.5, 1.5, 1.5); // 1.5배 크기
-                } else {
-                    this.models[direction].scale.set(1, 1, 1);
+                    this.models[direction].scale.multiplyScalar(1.5);
                 }
                 
-                this.models[direction].position.set(0, 0, 0);
+                this.models[direction].rotation.z = Math.PI;
                 
-                // 🔄 모든 모델을 Z축 기준으로 180도 회전
-                this.models[direction].rotation.z = Math.PI; // 180도 = π 라디안
-                
-                // 재질 설정
-                this.models[direction].traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        
-                        if (child.material) {
-                            // 기존 재질 유지하면서 필요한 속성만 추가
-                            child.material.metalness = 0.3;
-                            child.material.roughness = 0.7;
-                        }
-                    }
-                });
-                
-                // 초기에는 center만 보이게
                 if (direction === 'center') {
                     this.scene.add(this.models[direction]);
                     this.currentModel = this.models[direction];
                 }
                 
-                console.log(`${direction} 모델 로드 완료 (Z축 180도 회전)`);
-            } catch (error) {
-                console.error(`${direction} 모델 로드 실패:`, error);
+                console.log(`${direction} SVG 텍스처 평면 생성 완료`);
+            },
+            undefined,
+            (error) => {
+                console.error(`${direction} SVG 텍스처 로드 실패:`, error);
                 this.createFallbackModel(direction);
             }
-        }
-        
-        // 모델이 하나도 로드되지 않았다면 폴백 생성
-        if (!this.currentModel) {
-            console.log('모든 모델 로드 실패, 폴백 모델 생성');
-            this.createFallbackModel('center');
-        }
-
-        // document.getElementById('loading-bar').style.width = `${(progress.loaded / progress.total * 100).toFixed(0)}%`;
+        );
     }
 
     createFallbackModel(direction) {
-        // 로드 실패 시 폴백 모델
-        const geometry = new THREE.BoxGeometry(2, 2, 2);
-        const material = new THREE.MeshBasicMaterial({ 
-            color: {
-                center: 0x808080,
-                east: 0xff0000,
-                west: 0x0000ff,
-                north: 0x00ff00,
-                south: 0xffff00,
-                east_28: 0xff6666,
-                west_28: 0x6666ff,
-                north_28: 0x66ff66,
-                south_28: 0xffff66
-            }[direction]
+        const colors = {
+            center: 0x808080,
+            east: 0x4ae24a,
+            west: 0xe2a54a,
+            north: 0x4a90e2,
+            south: 0xe24a4a,
+            east_28: 0x66ff66,
+            west_28: 0xffaa66,
+            north_28: 0x6666ff,
+            south_28: 0xff6666
+        };
+        
+        // 원형 지오메트리 사용
+        const geometry = new THREE.CircleGeometry(2, 32);
+        const material = new THREE.MeshPhysicalMaterial({ 
+            color: colors[direction] || 0x808080,
+            metalness: 0.3,
+            roughness: 0.7,
+            side: THREE.DoubleSide
         });
         
-        this.models[direction] = new THREE.Mesh(geometry, material);
+        const circle = new THREE.Mesh(geometry, material);
         
-        // _28 모델은 더 큰 크기
+        // 방향 텍스트 추가
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        
+        // 배경
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.beginPath();
+        ctx.arc(128, 128, 120, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 텍스트
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 48px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(direction.toUpperCase(), 128, 128);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        const textMaterial = new THREE.MeshBasicMaterial({ 
+            map: texture, 
+            transparent: true,
+            side: THREE.DoubleSide
+        });
+        
+        const textPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.5, 1.5), 
+            textMaterial
+        );
+        textPlane.position.z = 0.01;
+        
+        const group = new THREE.Group();
+        group.add(circle);
+        group.add(textPlane);
+        group.name = `${direction}_fallback`;
+        
         if (direction.includes('_28')) {
-            this.models[direction].scale.set(3, 3, 3);
+            group.scale.set(3, 3, 3);
         }
         
-        // 🔄 폴백 모델도 Z축 기준으로 180도 회전
-        this.models[direction].rotation.z = Math.PI;
+        group.rotation.z = Math.PI;
+        
+        this.models[direction] = group;
         
         if (direction === 'center') {
             this.scene.add(this.models[direction]);
             this.currentModel = this.models[direction];
         }
+        
+        console.log(`${direction} 폴백 모델 생성 완료`);
     }
 
     switchModel(newDirection) {
-        // center에서 center를 선택하면 무시
+    // center에서 center를 선택하면 무시
         if (newDirection === 'center' && this.currentDirection === 'center') return;
         
         // 같은 방향이고 확대되지 않은 상태면 무시
         if (this.currentDirection === newDirection && !this.isZoomed) return;
         
-        // 현재 모델 제거
+        // 현재 모델 페이드 아웃
         if (this.currentModel) {
-            this.scene.remove(this.currentModel);
+            const oldModel = this.currentModel;
+            
+            gsap.to(oldModel.scale, {
+                x: 0,
+                y: 0,
+                z: 0,
+                duration: 0.5,
+                ease: "power2.in",
+                onComplete: () => {
+                    this.scene.remove(oldModel);
+                }
+            });
         }
         
         // 확대 상태 초기화
@@ -455,7 +616,7 @@ class ConstellationExperience {
             this.currentZoom = 1.0;
             this.showZoomIndicator(false);
             
-            // 카메라와 FOV 원래 위치로 복원
+            // 카메라 복원
             gsap.to(this.camera.position, {
                 x: this.initialCameraPosition.x,
                 y: this.initialCameraPosition.y,
@@ -480,6 +641,26 @@ class ConstellationExperience {
             this.currentModel = this.models[newDirection];
             this.currentDirection = newDirection;
             
+            // 새 모델 페이드 인
+            this.currentModel.scale.set(0, 0, 0);
+            
+            const targetScale = newDirection.includes('_28') ? 1.5 : 1;
+            
+            gsap.to(this.currentModel.scale, {
+                x: targetScale,
+                y: targetScale,
+                z: targetScale,
+                duration: 0.5,
+                ease: "back.out(1.7)"
+            });
+            
+            // 회전 애니메이션
+            gsap.from(this.currentModel.rotation, {
+                z: this.currentModel.rotation.z + Math.PI,
+                duration: 1,
+                ease: "power2.out"
+            });
+            
             console.log(`모델 전환: ${newDirection}`);
             
             if (newDirection === 'center') {
@@ -489,7 +670,6 @@ class ConstellationExperience {
             }
         }
     }
-
     switchToZoomedModel(direction) {
         if (direction === 'center') return;
         
