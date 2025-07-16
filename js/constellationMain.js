@@ -217,14 +217,29 @@ class ConstellationExperience {
             }
         };
 
-        // 패닝 관련 변수들 (개선된 버전)
+        // 패닝 관련 변수들
         this.isPanning = false;
         this.panningHandIndex = -1;
-        this.panStartPosition = null;  // 패닝 시작 시 손 위치
-        this.cameraStartPosition = null;  // 패닝 시작 시 카메라 위치
-        this.panOffset = { x: 0, y: 0 };  // 누적 패닝 오프셋
-        this.maxPanRange = 3.0;  // XY 평면에서 최대 패닝 거리
-        this.panSensitivity = 2.0;  // 패닝 감도
+        this.panStartPosition = null;
+        this.cameraStartPosition = null;
+        this.maxPanRange = 3.0;
+        this.panSensitivity = 2.0;
+        
+        // 현재 세션의 _28 모델별 카메라 위치 (세션 동안만 유지)
+        this.sessionCameraPositions = {
+            east_28: { x: 0, y: 0, z: 1.5 },
+            west_28: { x: 0, y: 0, z: 1.5 },
+            north_28: { x: 0, y: 0, z: 1.5 },
+            south_28: { x: 0, y: 0, z: 1.5 }
+        };
+        
+        // 현재 세션의 줌 레벨 (세션 동안만 유지)
+        this.sessionZoomLevels = {
+            east_28: 1.0,
+            west_28: 1.0,
+            north_28: 1.0,
+            south_28: 1.0
+        };
     }
 
     async init() {
@@ -312,7 +327,7 @@ class ConstellationExperience {
         this.camera.position.set(0, 0, 1.5);
         this.camera.lookAt(0, 0, 0);  // 항상 Z=0 평면을 바라봄
         this.initialCameraPosition = this.camera.position.clone();
-        this.initialCameraRotation = this.camera.rotation.clone();  // 초기 회전값 저장
+        // this.initialCameraRotation = this.camera.rotation.clone();  // 초기 회전값 저장
             
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -418,19 +433,19 @@ class ConstellationExperience {
                         }
                         
                         // Z축 180도 회전
-                        this.models[direction].rotation.z = Math.PI;
+                        // this.models[direction].rotation.z = Math.PI;
                         
                         // center 모델은 즉시 표시
                         if (direction === 'center') {
                             this.scene.add(this.models[direction]);
                             this.currentModel = this.models[direction];
                             
-                            // 초기 회전 애니메이션
-                            gsap.from(this.currentModel.rotation, {
-                                z: Math.PI * 2,
-                                duration: 2,
-                                ease: "power2.out"
-                            });
+                            // // 초기 회전 애니메이션
+                            // gsap.from(this.currentModel.rotation, {
+                            //     z: Math.PI * 2,
+                            //     duration: 2,
+                            //     ease: "power2.out"
+                            // });
                             
                             // 초기 스케일 애니메이션
                             gsap.from(this.currentModel.scale, {
@@ -492,7 +507,7 @@ class ConstellationExperience {
                     this.models[direction].scale.multiplyScalar(1.5);
                 }
                 
-                this.models[direction].rotation.z = Math.PI;
+                // this.models[direction].rotation.z = Math.PI;
                 
                 if (direction === 'center') {
                     this.scene.add(this.models[direction]);
@@ -593,20 +608,9 @@ class ConstellationExperience {
         // 같은 방향이고 확대되지 않은 상태면 무시
         if (this.currentDirection === newDirection && !this.isZoomed) return;
         
-        // 현재 모델 페이드 아웃
+        // 현재 모델 제거
         if (this.currentModel) {
-            const oldModel = this.currentModel;
-            
-            gsap.to(oldModel.scale, {
-                x: 0,
-                y: 0,
-                z: 0,
-                duration: 0.5,
-                ease: "power2.in",
-                onComplete: () => {
-                    this.scene.remove(oldModel);
-                }
-            });
+            this.scene.remove(this.currentModel);
         }
         
         // 확대 상태 초기화
@@ -616,23 +620,10 @@ class ConstellationExperience {
             this.currentZoom = 1.0;
             this.showZoomIndicator(false);
             
-            // 카메라 복원
-            gsap.to(this.camera.position, {
-                x: this.initialCameraPosition.x,
-                y: this.initialCameraPosition.y,
-                z: this.initialCameraPosition.z,
-                duration: 1,
-                ease: "power2.out"
-            });
-            
-            gsap.to(this.camera, {
-                fov: 75,
-                duration: 1,
-                ease: "power2.out",
-                onUpdate: () => {
-                    this.camera.updateProjectionMatrix();
-                }
-            });
+            // 🔴 카메라 애니메이션 제거 - 즉시 이동
+            this.camera.position.copy(this.initialCameraPosition);
+            this.camera.fov = 75;
+            this.camera.updateProjectionMatrix();
         }
         
         // 새 모델 추가
@@ -641,25 +632,9 @@ class ConstellationExperience {
             this.currentModel = this.models[newDirection];
             this.currentDirection = newDirection;
             
-            // 새 모델 페이드 인
-            this.currentModel.scale.set(0, 0, 0);
-            
+            // 🔴 페이드 인 애니메이션 제거 - 즉시 표시
             const targetScale = newDirection.includes('_28') ? 1.5 : 1;
-            
-            gsap.to(this.currentModel.scale, {
-                x: targetScale,
-                y: targetScale,
-                z: targetScale,
-                duration: 0.5,
-                ease: "back.out(1.7)"
-            });
-            
-            // 회전 애니메이션
-            gsap.from(this.currentModel.rotation, {
-                z: this.currentModel.rotation.z + Math.PI,
-                duration: 1,
-                ease: "power2.out"
-            });
+            this.currentModel.scale.set(targetScale, targetScale, targetScale);
             
             console.log(`모델 전환: ${newDirection}`);
             
@@ -670,17 +645,17 @@ class ConstellationExperience {
             }
         }
     }
+
     switchToZoomedModel(direction) {
         if (direction === 'center') return;
         
         const zoomedModelKey = `${direction}_28`;
         
-        // 현재 모델 제거
+        // 현재 모델 즉시 제거
         if (this.currentModel) {
             this.scene.remove(this.currentModel);
         }
         
-        // _28 모델이 있는지 확인
         if (this.models[zoomedModelKey]) {
             this.scene.add(this.models[zoomedModelKey]);
             this.currentModel = this.models[zoomedModelKey];
@@ -688,30 +663,20 @@ class ConstellationExperience {
             this.isZoomed = true;
             this.zoomedDirection = direction;
             
-            // _28 모델로 전환 시 줌 레벨 초기화
-            this.currentZoom = 1.0;
+            // 세션에 저장된 줌 레벨 복원
+            this.currentZoom = this.sessionZoomLevels[zoomedModelKey];
             
-            // 현재 카메라 상태 저장
-            this.preZoomCameraPosition = this.camera.position.clone();
+            // 세션에 저장된 카메라 위치 복원
+            const savedPos = this.sessionCameraPositions[zoomedModelKey];
+            this.camera.position.set(savedPos.x, savedPos.y, savedPos.z);
             
-            // 방향별 카메라 설정 가져오기
-            const cameraConfig = this.zoomedCameraPositions[zoomedModelKey];
+            // 줌 레벨에 따른 FOV 설정
+            const baseFOV = 75;
+            this.camera.fov = baseFOV / Math.sqrt(this.currentZoom);
+            this.camera.updateProjectionMatrix();
             
-            if (cameraConfig) {
-                // 카메라 위치 이동
-                gsap.to(this.camera.position, {
-                    x: cameraConfig.position.x,
-                    y: cameraConfig.position.y,
-                    z: cameraConfig.position.z || 1.5,
-                    duration: 1.5,
-                    ease: "power2.out"
-                });
-            }
-            
-            console.log(`${direction} 구역 확대 모델로 전환`);
+            console.log(`${direction} 구역 확대 모델로 전환 (위치: ${savedPos.x.toFixed(2)}, ${savedPos.y.toFixed(2)}, 줌: ${this.currentZoom.toFixed(2)})`);
             document.getElementById('status').textContent = `${direction.toUpperCase()} 구역 확대 보기 (양손 주먹: 줌, V: 돌아가기)`;
-        } else {
-            console.warn(`${zoomedModelKey} 모델을 찾을 수 없습니다.`);
         }
     }
 
@@ -774,16 +739,90 @@ class ConstellationExperience {
     }
 
     determineQuadrant(normalizedX, normalizedY) {
-        // 화면을 4등분하여 방향 결정
-        const isLeft = normalizedX < 0.5;
-        const isTop = normalizedY < 0.5;
+        // MediaPipe는 좌우가 반전되어 있으므로 보정
+        // selfieMode가 true일 때는 이미 반전되어 있음
+        const x = normalizedX;
+        const y = normalizedY;
         
-        if (isLeft && isTop) return 'east';      // 좌상단
-        else if (!isLeft && isTop) return 'north'; // 우상단
-        else if (isLeft && !isTop) return 'south'; // 좌하단
-        else if (!isLeft && !isTop) return 'west'; // 우하단
+        // 화면 중심을 (0.5, 0.5)로 설정
+        const dx = x - 0.5;
+        const dy = y - 0.5;
         
-        return 'center';
+        // 대각선을 기준으로 영역 판단
+        // X자 대각선: y = x와 y = -x
+        if (dy < -Math.abs(dx)) {
+            // 위쪽 삼각형 영역
+            return 'north';
+        } else if (dy > Math.abs(dx)) {
+            // 아래쪽 삼각형 영역
+            return 'south';
+        } else if (dx < 0) {
+            // 왼쪽 삼각형 영역
+            return 'east';
+        } else {
+            // 오른쪽 삼각형 영역
+            return 'west';
+        }
+    }
+
+    determineQuadrantSimple(normalizedX, normalizedY) {
+        // 화면 중심을 (0.5, 0.5)로 설정
+        const dx = normalizedX - 0.5;
+        const dy = normalizedY - 0.5;
+        
+        // 대각선 y = x와 y = -x를 기준으로 판단
+        if (dy < dx && dy < -dx) {
+            return 'north';  // 위쪽 (북)
+        } else if (dy >= dx && dy < -dx) {
+            return 'east';   // 왼쪽 (동)
+        } else if (dy >= dx && dy >= -dx) {
+            return 'south';  // 아래쪽 (남)
+        } else {
+            return 'west';   // 오른쪽 (서)
+        }
+    }
+
+    visualizeQuadrantSelection(x, y, quadrant) {
+        // 기존 마커 제거
+        const existingMarker = document.getElementById('debug-marker');
+        if (existingMarker) existingMarker.remove();
+        
+        // 디버그 마커 생성
+        const marker = document.createElement('div');
+        marker.id = 'debug-marker';
+        marker.style.cssText = `
+            position: fixed;
+            left: ${x * 100}%;
+            top: ${y * 100}%;
+            width: 20px;
+            height: 20px;
+            background: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10000;
+        `;
+        
+        // 선택된 영역 표시
+        const label = document.createElement('div');
+        label.style.cssText = `
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: black;
+            color: white;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+        `;
+        label.textContent = quadrant;
+        marker.appendChild(label);
+        
+        document.body.appendChild(marker);
+        
+        // 3초 후 제거
+        setTimeout(() => marker.remove(), 3000);
     }
 
     async setupCamera() {
@@ -892,20 +931,17 @@ class ConstellationExperience {
         const leftHand = this.handStates[0];
         const rightHand = this.handStates[1];
         
-        // 양손이 모두 주먹을 쥐고 있는지 확인
         if (leftHand.isVisible && rightHand.isVisible) {
             const leftFist = this.isFistGesture(leftHand.smoothedLandmarks);
             const rightFist = this.isFistGesture(rightHand.smoothedLandmarks);
             
             if (leftFist && rightFist) {
-                // 양손 주먹 사이의 거리 계산
                 const distance = this.calculateHandsDistance(
                     leftHand.position,
                     rightHand.position
                 );
                 
                 if (!this.isTwoHandsFisting) {
-                    // 줌 제스처 시작
                     this.isTwoHandsFisting = true;
                     this.initialFistDistance = distance;
                     console.log('양손 주먹 줌 제스처 시작');
@@ -913,12 +949,8 @@ class ConstellationExperience {
                 } else {
                     // 거리 변화를 기반으로 줌 레벨 업데이트
                     const distanceRatio = distance / this.initialFistDistance;
-                    
-                    // 부드러운 줌을 위해 현재 줌에서 점진적으로 변화
                     const targetZoom = this.currentZoom * distanceRatio;
                     this.currentZoom = Math.max(this.minZoom, Math.min(this.maxZoom, targetZoom));
-                    
-                    // 다음 제스처를 위해 현재 거리를 초기 거리로 업데이트
                     this.initialFistDistance = distance;
                     
                     // 카메라 줌 적용
@@ -928,10 +960,14 @@ class ConstellationExperience {
                     this.updateZoomIndicator();
                 }
             } else {
-                // 주먹 제스처 종료
+                // 줌 제스처 종료 시 현재 줌 레벨 저장
                 if (this.isTwoHandsFisting) {
+                    if (this.isZoomed && this.currentDirection) {
+                        const modelKey = `${this.currentDirection}_28`;
+                        this.sessionZoomLevels[modelKey] = this.currentZoom;
+                        console.log(`${modelKey} 줌 레벨 저장: ${this.currentZoom.toFixed(2)}`);
+                    }
                     console.log('양손 주먹 줌 제스처 종료');
-                    console.log('최종 줌 레벨:', this.currentZoom);
                     this.showZoomIndicator(false);
                 }
                 this.isTwoHandsFisting = false;
@@ -1130,7 +1166,6 @@ class ConstellationExperience {
     }
 
     updatePanning(handIndex, gestureInfo) {
-        // 패닝 조건 확인
         if (!this.isPanning || 
             this.panningHandIndex !== handIndex || 
             !this.panStartPosition || 
@@ -1138,24 +1173,19 @@ class ConstellationExperience {
             return;
         }
         
-        // 현재 핀치 위치
         const currentPosition = {
             x: gestureInfo.pinchPosition.x,
             y: gestureInfo.pinchPosition.y
         };
         
-        // 정규화된 좌표에서의 이동량 계산 (0~1 범위)
         const normalizedDeltaX = currentPosition.x - this.panStartPosition.x;
         const normalizedDeltaY = currentPosition.y - this.panStartPosition.y;
         
-        // 줌 레벨을 고려한 실제 이동량 계산
         const zoomAdjustedSensitivity = this.panSensitivity / this.currentZoom;
         
-        // 카메라 이동량 계산 (XY 평면만)
-        const cameraDeltaX = -normalizedDeltaX * zoomAdjustedSensitivity * 5.0;  // 좌우 반전
-        const cameraDeltaY = normalizedDeltaY * zoomAdjustedSensitivity * 5.0;   // 상하는 그대로
+        const cameraDeltaX = -normalizedDeltaX * zoomAdjustedSensitivity * 5.0;
+        const cameraDeltaY = normalizedDeltaY * zoomAdjustedSensitivity * 5.0;
         
-        // 새로운 카메라 위치 계산
         let newCameraX = this.cameraStartPosition.x + cameraDeltaX;
         let newCameraY = this.cameraStartPosition.y + cameraDeltaY;
         
@@ -1163,21 +1193,10 @@ class ConstellationExperience {
         newCameraX = Math.max(-this.maxPanRange, Math.min(this.maxPanRange, newCameraX));
         newCameraY = Math.max(-this.maxPanRange, Math.min(this.maxPanRange, newCameraY));
         
-        // 카메라 위치 업데이트 (Z축은 유지)
         this.camera.position.x = newCameraX;
         this.camera.position.y = newCameraY;
-        // Z축은 변경하지 않음 - this.camera.position.z 유지
-        
-        // 누적 오프셋 업데이트
-        this.panOffset.x = newCameraX - (this.zoomedCameraPositions[`${this.currentDirection}_28`]?.position.x || 0);
-        this.panOffset.y = newCameraY - (this.zoomedCameraPositions[`${this.currentDirection}_28`]?.position.y || 0);
-        
-        // 디버그 정보
-        if (Math.abs(normalizedDeltaX) > 0.01 || Math.abs(normalizedDeltaY) > 0.01) {
-            console.log(`패닝 업데이트 - X: ${newCameraX.toFixed(2)}, Y: ${newCameraY.toFixed(2)}`);
-        }
     }
-
+    
     stopPanning() {
         if (!this.isPanning) return;
         
@@ -1309,34 +1328,34 @@ class ConstellationExperience {
     applyZoom() {
         if (!this.isZoomed) return;
         
-        // 현재 카메라 설정 가져오기
-        const cameraConfig = this.zoomedCameraPositions[`${this.currentDirection}_28`];
+        const baseZ = 1.5;
+        const newZ = baseZ / this.currentZoom;
         
-        if (cameraConfig) {
-            // 줌 레벨에 따라 카메라 Z 위치 조정
-            const baseZ = cameraConfig.position.z || 1.5;
-            const newZ = baseZ / this.currentZoom; // 줌인하면 가까이, 줌아웃하면 멀리
-            
-            // 부드러운 전환을 위해 GSAP 사용
-            gsap.to(this.camera.position, {
-                z: newZ,
-                duration: 0.1,
-                ease: "power2.out"
-            });
-            
-            // FOV 조정으로 추가적인 줌 효과 (선택사항)
-            const baseFOV = 75;
-            const newFOV = baseFOV / Math.sqrt(this.currentZoom); // 줌인하면 FOV 감소
-            
-            gsap.to(this.camera, {
-                fov: Math.max(20, Math.min(120, newFOV)),
-                duration: 0.1,
-                ease: "power2.out",
-                onUpdate: () => {
-                    this.camera.updateProjectionMatrix();
+        gsap.to(this.camera.position, {
+            z: newZ,
+            duration: 0.1,
+            ease: "power2.out",
+            onComplete: () => {
+                // Z축 위치도 세션에 저장
+                if (this.currentDirection) {
+                    const modelKey = `${this.currentDirection}_28`;
+                    this.sessionCameraPositions[modelKey].z = this.camera.position.z;
                 }
-            });
-        }
+            }
+        });
+        
+        // FOV 조정
+        const baseFOV = 75;
+        const newFOV = baseFOV / Math.sqrt(this.currentZoom);
+        
+        gsap.to(this.camera, {
+            fov: Math.max(20, Math.min(120, newFOV)),
+            duration: 0.1,
+            ease: "power2.out",
+            onUpdate: () => {
+                this.camera.updateProjectionMatrix();
+            }
+        });
     }
 
     // V 제스처 이펙트
@@ -1433,21 +1452,16 @@ class ConstellationExperience {
     onPinchStart(handIndex, gestureInfo, landmarks) {
         const handLabel = handIndex === 0 ? "왼손" : "오른손";
         console.log(`${handLabel} 핀치 시작!`);
+        console.log(`핀치 위치: x=${gestureInfo.pinchPosition.x.toFixed(2)}, y=${gestureInfo.pinchPosition.y.toFixed(2)}`);
         
         // 핀치 시작 이펙트
         this.createPinchStartEffect(handIndex, gestureInfo);
-        
-        // 햅틱 피드백 시뮬레이션
-        this.createHapticFeedback(handIndex);
-        
-        // 화면에 디버그 마커 표시
-        this.showDebugMarker(gestureInfo.pinchPosition, handIndex);
         
         // _28 모델 상태 확인
         if (this.isZoomed) {
             // _28 모델에서는 패닝 시작
             this.startPanning(handIndex, gestureInfo);
-            return;  // 다른 동작은 하지 않음
+            return;
         }
         
         // 일반 모드에서의 핀치 동작
@@ -1455,6 +1469,18 @@ class ConstellationExperience {
             gestureInfo.pinchPosition.x,
             gestureInfo.pinchPosition.y
         );
+        
+        console.log(`선택된 영역: ${quadrant}`);
+        
+        // 디버깅용 시각화
+        this.visualizeQuadrantSelection(
+            gestureInfo.pinchPosition.x,
+            gestureInfo.pinchPosition.y,
+            quadrant
+        );
+        
+        // 선택 영역 하이라이트 표시
+        // this.createSelectionHighlight(quadrant);
         
         if (this.currentDirection === 'center') {
             // 중앙에서 방향 선택
@@ -1468,14 +1494,60 @@ class ConstellationExperience {
         }
     }
 
+    // createSelectionHighlight(quadrant) {
+    //     // 기존 하이라이트 제거
+    //     const existingHighlight = document.getElementById('quadrant-highlight');
+    //     if (existingHighlight) {
+    //         existingHighlight.remove();
+    //     }
+        
+    //     const highlight = document.createElement('div');
+    //     highlight.id = 'quadrant-highlight';
+        
+    //     // 각 영역의 클립 패스 정의
+    //     const clipPaths = {
+    //         north: 'polygon(50% 0%, 100% 0%, 50% 50%)',
+    //         east: 'polygon(0% 0%, 50% 0%, 50% 50%, 0% 50%)',
+    //         south: 'polygon(0% 100%, 50% 50%, 100% 100%)',
+    //         west: 'polygon(50% 50%, 100% 0%, 100% 100%)'
+    //     };
+        
+    //     const colors = {
+    //         north: 'rgba(226, 74, 74, 0.2)',   // 빨간색
+    //         east: 'rgba(74, 226, 74, 0.2)',    // 초록색
+    //         south: 'rgba(226, 165, 74, 0.2)',  // 주황색
+    //         west: 'rgba(74, 144, 226, 0.2)'    // 파란색
+    //     };
+        
+    //     highlight.style.cssText = `
+    //         position: fixed;
+    //         top: 0;
+    //         left: 0;
+    //         width: 100%;
+    //         height: 100%;
+    //         background: ${colors[quadrant]};
+    //         clip-path: ${clipPaths[quadrant]};
+    //         pointer-events: none;
+    //         z-index: 5;
+    //         transition: opacity 0.3s;
+    //     `;
+        
+    //     document.body.appendChild(highlight);
+        
+    //     // 일정 시간 후 페이드 아웃
+    //     setTimeout(() => {
+    //         highlight.style.opacity = '0';
+    //         setTimeout(() => highlight.remove(), 300);
+    //     }, 500);
+    // }
+
+
     startPanning(handIndex, gestureInfo) {
-        // _28 모델이 활성화되어 있는지 확인
         if (!this.isZoomed) {
             console.log('패닝은 _28 모델에서만 가능합니다.');
             return;
         }
         
-        // 이미 패닝 중이면 무시
         if (this.isPanning) {
             return;
         }
@@ -1483,19 +1555,19 @@ class ConstellationExperience {
         this.isPanning = true;
         this.panningHandIndex = handIndex;
         
-        // 시작 위치 저장
+        // 시작 위치 저장 (핀치 위치)
         this.panStartPosition = {
             x: gestureInfo.pinchPosition.x,
             y: gestureInfo.pinchPosition.y
         };
         
-        // 현재 카메라 위치 저장
+        // 현재 카메라 위치 저장 (이미 패닝된 위치일 수 있음)
         this.cameraStartPosition = {
             x: this.camera.position.x,
             y: this.camera.position.y
         };
         
-        console.log(`패닝 시작 - Hand ${handIndex}:`, this.panStartPosition);
+        console.log(`패닝 시작 - 카메라 위치: (${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)})`);
         this.showPanningIndicator(true);
         this.showMessage('핀치를 유지하고 드래그하여 이동', 1500);
     }
@@ -1505,15 +1577,24 @@ class ConstellationExperience {
         const handLabel = handIndex === 0 ? "왼손" : "오른손";
         console.log(`${handLabel} 핀치 종료`);
         
-        // 패닝 중이었다면 종료
         if (this.isPanning && this.panningHandIndex === handIndex) {
+            // 현재 카메라 위치를 세션에 저장
+            if (this.isZoomed && this.currentDirection) {
+                const modelKey = `${this.currentDirection}_28`;
+                this.sessionCameraPositions[modelKey] = {
+                    x: this.camera.position.x,
+                    y: this.camera.position.y,
+                    z: this.camera.position.z
+                };
+                console.log(`${modelKey} 위치 저장: (${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)})`);
+            }
+            
             this.isPanning = false;
             this.panStartPosition = null;
             this.cameraStartPosition = null;
             console.log('패닝 종료');
             
-            // 패닝 종료 시각적 효과
-            this.createPanningIndicator(false);
+            this.showPanningIndicator(false);
         }
     }
 
@@ -1619,22 +1700,22 @@ class ConstellationExperience {
     returnToOriginalModel(direction) {
         console.log(`${direction} 원래 모델로 복귀`);
         
-        // 줌 레벨 완전히 리셋
+        // 해당 _28 모델의 세션 위치 리셋
+        const modelKey = `${direction}_28`;
+        this.sessionCameraPositions[modelKey] = { x: 0, y: 0, z: 1.5 };
+        this.sessionZoomLevels[modelKey] = 1.0;
+        
+        // 모든 상태 리셋
         this.currentZoom = 1.0;
         this.isTwoHandsFisting = false;
         this.initialFistDistance = null;
-
-        // 패닝 상태도 리셋
-        this.resetPanning();
-        
-        // 패닝 상태 리셋
         this.isPanning = false;
         this.panStartPosition = null;
         this.cameraStartPosition = null;
         
         // 인디케이터 제거
         this.showZoomIndicator(false);
-        this.createPanningIndicator(false);
+        this.showPanningIndicator(false);
         
         // 현재 확대 모델 제거
         if (this.currentModel) {
@@ -1648,24 +1729,10 @@ class ConstellationExperience {
             this.isZoomed = false;
             this.zoomedDirection = null;
             
-            // 카메라를 원래 위치로 완전히 복원 (패닝도 리셋)
-            gsap.to(this.camera.position, {
-                x: this.initialCameraPosition.x,
-                y: this.initialCameraPosition.y,
-                z: this.initialCameraPosition.z,
-                duration: 1.2,
-                ease: "power2.inOut"
-            });
-            
-            // FOV도 원래대로 복원
-            gsap.to(this.camera, {
-                fov: 75,
-                duration: 1.2,
-                ease: "power2.inOut",
-                onUpdate: () => {
-                    this.camera.updateProjectionMatrix();
-                }
-            });
+            // 카메라 즉시 초기 위치로
+            this.camera.position.copy(this.initialCameraPosition);
+            this.camera.fov = 75;
+            this.camera.updateProjectionMatrix();
             
             document.getElementById('status').textContent = `${direction.toUpperCase()} 구역 기본 보기로 복귀`;
         }
@@ -2278,7 +2345,7 @@ class ConstellationExperience {
     }
 
     createQuadrantGuide() {
-        // 화면 4분할 가이드 오버레이
+    // 화면 4분할 가이드 오버레이
         const guide = document.createElement('div');
         guide.id = 'quadrant-guide';
         guide.style.cssText = `
@@ -2291,12 +2358,12 @@ class ConstellationExperience {
             z-index: 10;
         `;
         
-        // 각 사분면 라벨
+        // 각 사분면 라벨 - 대각선 위치로 변경
         const quadrants = [
-            { position: 'bottom: 10%; left: 25%;', text: 'SOUTH (남): 여름', color: '#e2a54a' },
-            { position: 'bottom: 10%; right: 25%;', text: 'WEST (서): 가을', color: '#4a90e2' },
-            { position: 'top: 10%; right: 25%;', text: 'NORTH (북): 겨울', color: '#e24a4a' },
-            { position: 'top: 10%; left: 25%;', text: 'EAST (동): 봄', color: '#4ae24a' }
+            { position: 'top: 10%; left: 10%;', text: 'EAST (동): 봄', color: '#4ae24a' },      // 좌상단
+            { position: 'top: 10%; right: 10%;', text: 'NORTH (북): 겨울', color: '#e24a4a' },  // 우상단
+            { position: 'bottom: 10%; right: 10%;', text: 'WEST (서): 가을', color: '#4a90e2' }, // 우하단
+            { position: 'bottom: 10%; left: 10%;', text: 'SOUTH (남): 여름', color: '#e2a54a' }  // 좌하단
         ];
         
         quadrants.forEach(q => {
@@ -2304,39 +2371,45 @@ class ConstellationExperience {
             label.style.cssText = `
                 position: absolute;
                 ${q.position}
-                transform: translate(-50%, -50%);
                 color: ${q.color};
-                font-size: 14px;
+                font-size: 16px;
                 font-weight: bold;
                 text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-                opacity: 0.6;
+                opacity: 0.8;
+                background: rgba(0,0,0,0.5);
+                padding: 5px 10px;
+                border-radius: 5px;
             `;
             label.textContent = q.text;
             guide.appendChild(label);
         });
         
-        // 십자선
-        const crosshair = document.createElement('div');
-        crosshair.style.cssText = `
+        // X자 대각선 (빨간색)
+        const diagonal1 = document.createElement('div');
+        diagonal1.style.cssText = `
             position: absolute;
             top: 0;
             left: 50%;
-            width: 1px;
-            height: 100%;
-            background: rgba(255,255,255,0.1);
+            width: 2px;
+            height: 141.42%; /* sqrt(2) * 100% */
+            background: rgba(255, 0, 0, 0.5);
+            transform: translate(-50%, -20.71%) rotate(45deg);
+            transform-origin: center;
         `;
-        guide.appendChild(crosshair);
+        guide.appendChild(diagonal1);
         
-        const crosshairH = document.createElement('div');
-        crosshairH.style.cssText = `
+        const diagonal2 = document.createElement('div');
+        diagonal2.style.cssText = `
             position: absolute;
-            top: 50%;
-            left: 0;
-            width: 100%;
-            height: 1px;
-            background: rgba(255,255,255,0.1);
+            top: 0;
+            left: 50%;
+            width: 2px;
+            height: 141.42%;
+            background: rgba(255, 0, 0, 0.5);
+            transform: translate(-50%, -20.71%) rotate(-45deg);
+            transform-origin: center;
         `;
-        guide.appendChild(crosshairH);
+        guide.appendChild(diagonal2);
         
         document.body.appendChild(guide);
     }
