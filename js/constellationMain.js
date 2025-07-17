@@ -67,25 +67,25 @@ class ConstellationMain {
             southLabel.style.opacity = '0.6';
             guide.appendChild(southLabel);
             
-            // 수직 십자선
-            const crosshairV = document.createElement('div');
-            crosshairV.style.position = 'absolute';
-            crosshairV.style.top = '0';
-            crosshairV.style.left = '50%';
-            crosshairV.style.width = '1px';
-            crosshairV.style.height = '100%';
-            crosshairV.style.background = 'rgba(255,255,255,0.1)';
-            guide.appendChild(crosshairV);
+            // // 수직 십자선
+            // const crosshairV = document.createElement('div');
+            // crosshairV.style.position = 'absolute';
+            // crosshairV.style.top = '0';
+            // crosshairV.style.left = '50%';
+            // crosshairV.style.width = '1px';
+            // crosshairV.style.height = '100%';
+            // crosshairV.style.background = 'rgba(255,255,255,0.1)';
+            // guide.appendChild(crosshairV);
             
-            // 수평 십자선
-            const crosshairH = document.createElement('div');
-            crosshairH.style.position = 'absolute';
-            crosshairH.style.top = '50%';
-            crosshairH.style.left = '0';
-            crosshairH.style.width = '100%';
-            crosshairH.style.height = '1px';
-            crosshairH.style.background = 'rgba(255,255,255,0.1)';
-            guide.appendChild(crosshairH);
+            // // 수평 십자선
+            // const crosshairH = document.createElement('div');
+            // crosshairH.style.position = 'absolute';
+            // crosshairH.style.top = '50%';
+            // crosshairH.style.left = '0';
+            // crosshairH.style.width = '100%';
+            // crosshairH.style.height = '1px';
+            // crosshairH.style.background = 'rgba(255,255,255,0.1)';
+            // guide.appendChild(crosshairH);
             
             document.body.appendChild(guide);
     }// constellationMain.js - 메인 애플리케이션 (핸드 트래킹 개선 버전)
@@ -2384,32 +2384,32 @@ class ConstellationExperience {
             guide.appendChild(label);
         });
         
-        // X자 대각선 (빨간색)
-        const diagonal1 = document.createElement('div');
-        diagonal1.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 50%;
-            width: 2px;
-            height: 141.42%; /* sqrt(2) * 100% */
-            background: rgba(255, 0, 0, 0.5);
-            transform: translate(-50%, -20.71%) rotate(45deg);
-            transform-origin: center;
-        `;
-        guide.appendChild(diagonal1);
+        // // X자 대각선 (빨간색)
+        // const diagonal1 = document.createElement('div');
+        // diagonal1.style.cssText = `
+        //     position: absolute;
+        //     top: 0;
+        //     left: 50%;
+        //     width: 2px;
+        //     height: 141.42%; /* sqrt(2) * 100% */
+        //     // background: rgba(255, 0, 0, 0.5);
+        //     transform: translate(-50%, -20.71%) rotate(45deg);
+        //     transform-origin: center;
+        // `;
+        // guide.appendChild(diagonal1);
         
-        const diagonal2 = document.createElement('div');
-        diagonal2.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 50%;
-            width: 2px;
-            height: 141.42%;
-            background: rgba(255, 0, 0, 0.5);
-            transform: translate(-50%, -20.71%) rotate(-45deg);
-            transform-origin: center;
-        `;
-        guide.appendChild(diagonal2);
+        // const diagonal2 = document.createElement('div');
+        // diagonal2.style.cssText = `
+        //     position: absolute;
+        //     top: 0;
+        //     left: 50%;
+        //     width: 2px;
+        //     height: 141.42%;
+        //     // background: rgba(255, 0, 0, 0.5);
+        //     transform: translate(-50%, -20.71%) rotate(-45deg);
+        //     transform-origin: center;
+        // `;
+        // guide.appendChild(diagonal2);
         
         document.body.appendChild(guide);
     }
