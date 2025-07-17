@@ -415,7 +415,7 @@ class ConstellationExperience {
                         // 그룹으로 감싸기
                         const group = new THREE.Group();
                         group.add(mesh);
-                        group.add(ring);
+                        // group.add(ring);
                         
                         // 그림자 설정
                         mesh.castShadow = true;
