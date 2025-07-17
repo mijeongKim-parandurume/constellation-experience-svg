@@ -678,6 +678,64 @@ class ConstellationExperience {
             console.log(`${direction} 구역 확대 모델로 전환 (위치: ${savedPos.x.toFixed(2)}, ${savedPos.y.toFixed(2)}, 줌: ${this.currentZoom.toFixed(2)})`);
             document.getElementById('status').textContent = `${direction.toUpperCase()} 구역 확대 보기 (양손 주먹: 줌, V: 돌아가기)`;
         }
+
+        const originalSwitchToZoomedModel = ConstellationExperience.prototype.switchToZoomedModel;
+        ConstellationExperience.prototype.switchToZoomedModel = function(direction) {
+            // 기존 로직 실행
+            originalSwitchToZoomedModel.call(this, direction);
+            
+            // _28 모델 상세 설명 표시
+            this.show28ModelDescription(direction);
+            this.restore28ModelStyle();
+            
+            console.log(`${direction} _28 모델로 전환 및 상세 설명 표시`);
+        };
+    }
+
+    // 별자리 설명 메서드들 (간단한 버전)
+    showSeasonDescription(season) {
+        const seasonDescriptions = {
+            spring: {
+                title: '동방청룡 (東方靑龍)',
+                content: '동쪽을 지키는 푸른 용의 별자리입니다. 봄철 밤하늘에서 관찰할 수 있으며, 각수부터 기수까지 7개의 별자리로 구성됩니다.',
+                constellations: ['각수', '항수', '저수', '방수', '심수', '미수', '기수']
+            },
+            summer: {
+                title: '남방주작 (南方朱雀)',
+                content: '남쪽을 지키는 붉은 새의 별자리입니다. 여름철 밤하늘에서 관찰할 수 있으며, 정수부터 진수까지 7개의 별자리로 구성됩니다.',
+                constellations: ['정수', '귀수', '류수', '성수', '장수', '익수', '진수']
+            },
+            autumn: {
+                title: '서방백호 (西方白虎)',
+                content: '서쪽을 지키는 흰 호랑이의 별자리입니다. 가을철 밤하늘에서 관찰할 수 있으며, 규수부터 삼수까지 7개의 별자리로 구성됩니다.',
+                constellations: ['규수', '루수', '위수', '묘수', '필수', '자수', '삼수']
+            },
+            winter: {
+                title: '북방현무 (北方玄武)',
+                content: '북쪽을 지키는 거북과 뱀의 별자리입니다. 겨울철 밤하늘에서 관찰할 수 있으며, 두수부터 벽수까지 7개의 별자리로 구성됩니다.',
+                constellations: ['두수', '우수', '여수', '허수', '위수', '실수', '벽수']
+            }
+        };
+        
+        const info = seasonDescriptions[season];
+        if (!info) return;
+        
+        const panel = document.getElementById('description-panel');
+        const title = document.getElementById('description-title');
+        const content = document.getElementById('description-content');
+        const sub = document.getElementById('description-sub');
+        
+        if (title) title.textContent = info.title;
+        if (content) {
+            content.innerHTML = `
+                ${info.content}<br><br>
+                <strong>구성 별자리:</strong><br>
+                ${info.constellations.join(' → ')}
+            `;
+        }
+        if (sub) sub.textContent = '각 별자리를 핀치하여 자세한 정보를 확인하세요.';
+        
+        if (panel) panel.style.opacity = '1';
     }
 
     getDirectionName(direction) {
@@ -2426,3 +2484,159 @@ window.addEventListener('load', () => {
     window.constellationApp = new ConstellationExperience();
     window.constellationApp.init();
 });
+
+// 🔧 클래스 외부에서 메서드 확장 (올바른 방식)
+Object.assign(ConstellationExperience.prototype, {
+    
+    // 방향 선택 시 계절 설명 표시
+    showDirectionDescription(direction) {
+        const directionToSeason = {
+            east: 'spring',
+            south: 'summer',
+            west: 'autumn',
+            north: 'winter'
+        };
+        
+        const season = directionToSeason[direction];
+        if (season) {
+            this.showSeasonDescription(season);
+            this.selectedSeason = season;
+        }
+    },
+    
+    // 기본 설명으로 복원
+    resetDescription() {
+        this.resetToDefaultDescription();
+        this.selectedSeason = null;
+    },
+
+    // _28 모델 진입 시 상세 설명 표시
+    show28ModelDescription(direction) {
+        const descriptions28 = {
+            east: {
+                title: '동방칠수 상세',
+                symbol: '🐉',
+                content: `청룡의 형상을 이루는 동방칠수는 봄철의 대표적인 별자리입니다. 각각은 용의 몸, 용의 목, 가슴 등 용의 각 부위를 나타내며 고대 중국인들은 이 용이 동방을 지키며 농사와 생명력을 관장한다고 믿었습니다. 농서 시대를 알리는 중요한 별자리들로 새로운 시작을 상징하는 데 사용되어왔습니다.`,
+                detailed: `현재드래그 이동 | 양손 주먹: 확대/축소 | V 제스처: 돌아가기`,
+                constellations: [
+                    '각수(角宿) - 용의 뿔',
+                    '항수(亢宿) - 용의 목',
+                    '저수(氐宿) - 용의 가슴',
+                    '방수(房宿) - 용의 배',
+                    '심수(心宿) - 용의 심장',
+                    '미수(尾宿) - 용의 꼬리',
+                    '기수(箕宿) - 키(곡식을 까부르는 도구)'
+                ]
+            },
+            
+            south: {
+                title: '남방칠수 상세',
+                symbol: '🔥',
+                content: `주작(불새)의 형상을 이루는 남방칠수는 여름의 대표적인 별자리입니다. 주작은 우아하고 우아한 불새의 모습으로 여름의 열정과 성장을 상징합니다. 고대인들은 이 별자리가 남쪽 하늘을 지키며 풍요로운 여름철과 농작물의 성장을 돕는다고 믿었습니다.`,
+                detailed: `현재드래그 이동 | 양손 주먹: 확대/축소 | V 제스처: 돌아가기`,
+                constellations: [
+                    '정수(井宿) - 우물',
+                    '귀수(鬼宿) - 귀신',
+                    '류수(柳宿) - 버들나무',
+                    '성수(星宿) - 별',
+                    '장수(張宿) - 활을 당기다',
+                    '익수(翼宿) - 날개',
+                    '진수(軫宿) - 수레'
+                ]
+            },
+            
+            west: {
+                title: '서방칠수 상세',
+                symbol: '🐅',
+                content: `백호의 형상을 이루는 서방칠수는 가을의 대표적인 별자리입니다. 백호는 사납고 강력한 힘을 지닌 흰 호랑이의 모습으로 가을의 엄숙함과 추수를 상징합니다. 고대인들은 서쪽 하늘을 지키며 전쟁과 용맹, 그리고 가을 추수의 결실을 관장한다고 믿었습니다.`,
+                detailed: `현재드래그 이동 | 양손 주먹: 확대/축소 | V 제스처: 돌아가기`,
+                constellations: [
+                    '규수(奎宿) - 다리를 벌리다',
+                    '루수(婁宿) - 묶다',
+                    '위수(胃宿) - 위',
+                    '묘수(昴宿) - 좀생이별(플레이아데스)',
+                    '필수(畢宿) - 그물',
+                    '자수(觜宿) - 부리',
+                    '삼수(參宿) - 참(오리온자리)'
+                ]
+            },
+            
+            north: {
+                title: '북방칠수 상세',
+                symbol: '🐢',
+                content: `현무(거북과 뱀)의 형상을 이루는 북방칠수는 겨울의 대표적인 별자리입니다. 현무는 거북과 뱀이 합쳐진 신비로운 동물로 겨울의 정적과 지혜를 상징합니다. 고대인들은 이 별자리가 북쪽 하늘을 지키며 겨울철의 혹독함을 이겨내는 인내와 지혜를 관장한다고 믿었습니다.`,
+                detailed: `현재드래그 이동 | 양손 주먹: 확대/축소 | V 제스처: 돌아가기`,
+                constellations: [
+                    '두수(斗宿) - 북두칠성',
+                    '우수(牛宿) - 소(견우)',
+                    '여수(女宿) - 여자(직녀)',
+                    '허수(虛宿) - 빈 곳',
+                    '위수(危宿) - 위험',
+                    '실수(室宿) - 방',
+                    '벽수(壁宿) - 벽'
+                ]
+            }
+        };
+        
+        const info = descriptions28[direction];
+        if (!info) return;
+        
+        const panel = document.getElementById('description-panel');
+        const title = document.getElementById('description-title');
+        const content = document.getElementById('description-content');
+        const sub = document.getElementById('description-sub');
+        
+        if (title) title.textContent = info.title;
+        if (content) {
+            content.innerHTML = `
+                <strong>${info.symbol} ${info.title}</strong><br><br>
+                ${info.content}<br><br>
+                <strong>구성 별자리 (28수):</strong><br>
+                ${info.constellations.map(constellation => `• ${constellation}`).join('<br>')}
+            `;
+        }
+        if (sub) sub.textContent = info.detailed;
+        
+        if (panel) {
+            panel.style.opacity = '1';
+            // _28 모델용 특별한 스타일 적용
+            panel.style.borderColor = 'rgba(255, 215, 0, 0.6)';
+            panel.style.boxShadow = '0 8px 32px rgba(255, 215, 0, 0.3)';
+        }
+        
+        console.log(`${direction} _28 모델 상세 설명 표시`);
+    },
+    
+    // _28 모델에서 나갈 때 스타일 복원
+    restore28ModelStyle() {
+        const panel = document.getElementById('description-panel');
+        if (panel) {
+            panel.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+            panel.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.6)';
+        }
+    }
+});
+
+// 기존 메서드들을 확장하여 UI 업데이트 추가
+const originalSwitchModel = ConstellationExperience.prototype.switchModel;
+ConstellationExperience.prototype.switchModel = function(newDirection) {
+    // 기존 로직 실행
+    originalSwitchModel.call(this, newDirection);
+    
+    // UI 업데이트 추가
+    if (newDirection === 'center') {
+        this.resetDescription();
+    } else {
+        this.showDirectionDescription(newDirection);
+    }
+};
+
+// resetView 메서드 확장
+const originalResetView = ConstellationExperience.prototype.resetView;
+ConstellationExperience.prototype.resetView = function() {
+    // 기존 로직 실행
+    originalResetView.call(this);
+    
+    // UI 리셋
+    this.resetDescription();
+};

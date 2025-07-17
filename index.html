@@ -91,6 +91,39 @@
             border-radius: 10px;
             font-size: 12px;
         }
+        #description-panel {
+        position: absolute;
+        top: 50%;
+        left: 20px;
+        transform: translateY(-50%);
+        color: white;
+        z-index: 100;
+        background: rgba(0,0,0,0.8);
+        padding: 25px;
+        border-radius: 15px;
+        max-width: 350px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
+        transition: all 0.5s ease;
+        }
+        
+        #description-panel h2 {
+            margin: 0 0 15px 0;
+            font-size: 24px;
+            color: #ffd700;
+        }
+        
+        #description-panel p {
+            margin: 0;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+        
+        #description-panel .sub-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #aaa;
+        }
     </style>
 </head>
 <body>
@@ -121,10 +154,19 @@
             <p><small>핀치 제스처로 별자리를 선택하세요</small></p>
         </div>
         
-        <div id="info-panel">
+        <!-- <div id="info-panel">
             <h3 id="constellation-name"></h3>
             <p id="constellation-description"></p>
             <p id="constellation-season"></p>
+        </div> -->
+
+        <div id="description-panel">
+            <h2 id="description-title">천상열차분야지도</h2>
+            <p id="description-content">
+                조선 초기에 제작된 석각 천문도로, 태조 4년(1395년)에 만들어진 우리나라의 대표적인 천문 유물입니다. 
+                하늘의 별자리를 돌에 새긴 것으로, 당시의 천문학 수준을 보여주는 중요한 문화재입니다.
+            </p>
+            <p class="sub-info" id="description-sub">손을 카메라 앞에 위치시키고 핀치 제스처로 탐험을 시작하세요.</p>
         </div>
         
         <div class="season-indicator" id="season-indicator"></div>
@@ -139,8 +181,7 @@
 
     <!-- 외부 라이브러리 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/SVGLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     
     <!-- MediaPipe -->
