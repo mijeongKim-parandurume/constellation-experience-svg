@@ -173,7 +173,7 @@ class ConstellationExperience {
         
         // 핀치 이펙트 관리
         this.pinchEffects = [];
-        this.pinchCooldown = 500; // 밀리초
+        this.pinchCooldown = 300; // 밀리초
 
         // 줌 제스처 관련 변수
         this.isTwoHandsFisting = false;  // 양손 주먹 상태
@@ -183,6 +183,7 @@ class ConstellationExperience {
         this.maxZoom = 3.0;      // 더 많이 확대 가능
         this.zoomSensitivity = 0.005;  // 감도 조정
         this.zoomVelocity = 0;   // 줌 속도 (부드러운 줌을 위해)
+        this.baseZoom = null;  // 줌 시작 시점의 줌 레벨 추가
         
         // V 제스처 감지 변수
         this.vGestureDetected = false;
@@ -215,6 +216,15 @@ class ConstellationExperience {
                 position: { x: 0.0, y: 0.0, z: 0.0 },   // 남쪽: 아래쪽으로 이동
                 lookAt: { x: 0, y: 0.0, z: 0 }
             }
+            
+        };
+
+        // 모델 위치 저장 (초기값은 모두 0,0)
+        this.modelOffsets = {
+            east_28: null,  // null로 초기화하여 처음인지 확인 가능
+            west_28: null,
+            north_28: null,
+            south_28: null
         };
 
         // 패닝 관련 변수들
@@ -224,6 +234,15 @@ class ConstellationExperience {
         this.cameraStartPosition = null;
         this.maxPanRange = 3.0;
         this.panSensitivity = 2.0;
+
+        this.lastPanPosition = null;  // 마지막 패닝 위치 저장
+        this.modelWorldOffset = {      // 월드 좌표계에서의 모델 오프셋
+            east_28: { x: 0, y: 0 },
+            west_28: { x: 0, y: 0 },
+            north_28: { x: 0, y: 0 },
+            south_28: { x: 0, y: 0 }
+        };
+        this.panSensitivity = 4.0;  // 패닝 감도
         
         // 현재 세션의 _28 모델별 카메라 위치 (세션 동안만 유지)
         this.sessionCameraPositions = {
@@ -651,7 +670,6 @@ class ConstellationExperience {
         
         const zoomedModelKey = `${direction}_28`;
         
-        // 현재 모델 즉시 제거
         if (this.currentModel) {
             this.scene.remove(this.currentModel);
         }
@@ -663,33 +681,26 @@ class ConstellationExperience {
             this.isZoomed = true;
             this.zoomedDirection = direction;
             
-            // 세션에 저장된 줌 레벨 복원
-            this.currentZoom = this.sessionZoomLevels[zoomedModelKey];
+            // 저장된 위치 복원
+            const savedOffset = this.modelWorldOffset[zoomedModelKey];
+            this.currentModel.position.set(savedOffset.x, savedOffset.y, 0);
             
-            // 세션에 저장된 카메라 위치 복원
-            const savedPos = this.sessionCameraPositions[zoomedModelKey];
-            this.camera.position.set(savedPos.x, savedPos.y, savedPos.z);
+            // 줌 레벨 복원
+            this.currentZoom = this.sessionZoomLevels[zoomedModelKey] || 1.0;
+            
+            // 카메라는 항상 고정 위치
+            this.camera.position.set(0, 0, 1.5);
             
             // 줌 레벨에 따른 FOV 설정
             const baseFOV = 75;
             this.camera.fov = baseFOV / Math.sqrt(this.currentZoom);
             this.camera.updateProjectionMatrix();
             
-            console.log(`${direction} 구역 확대 모델로 전환 (위치: ${savedPos.x.toFixed(2)}, ${savedPos.y.toFixed(2)}, 줌: ${this.currentZoom.toFixed(2)})`);
-            document.getElementById('status').textContent = `${direction.toUpperCase()} 구역 확대 보기 (양손 주먹: 줌, V: 돌아가기)`;
+            console.log(`${direction} 구역 확대 모델로 전환`);
+            console.log(`복원된 위치: (${savedOffset.x.toFixed(2)}, ${savedOffset.y.toFixed(2)}), 줌: ${this.currentZoom.toFixed(2)}`);
+            
+            document.getElementById('status').textContent = `${direction.toUpperCase()} 구역 확대 보기`;
         }
-
-        const originalSwitchToZoomedModel = ConstellationExperience.prototype.switchToZoomedModel;
-        ConstellationExperience.prototype.switchToZoomedModel = function(direction) {
-            // 기존 로직 실행
-            originalSwitchToZoomedModel.call(this, direction);
-            
-            // _28 모델 상세 설명 표시
-            this.show28ModelDescription(direction);
-            this.restore28ModelStyle();
-            
-            console.log(`${direction} _28 모델로 전환 및 상세 설명 표시`);
-        };
     }
 
     // 별자리 설명 메서드들 (간단한 버전)
@@ -914,8 +925,8 @@ class ConstellationExperience {
             selfieMode: true,
             maxNumHands: 2,
             modelComplexity: 1,
-            minDetectionConfidence: 0.5,  // 더 낮은 값으로 조정
-            minTrackingConfidence: 0.5    // 더 낮은 값으로 조정
+            minDetectionConfidence: 0.7,  // 0.5에서 0.7로 증가
+            minTrackingConfidence: 0.7    // 0.5에서 0.7로 증가
         });
 
         this.hands.onResults((results) => this.onHandResults(results));
@@ -942,7 +953,7 @@ class ConstellationExperience {
 
         if (!results || !results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
             document.getElementById('status').textContent = '손을 카메라 앞에 위치시키세요';
-            this.isTwoHandsPinching = false;
+            this.isTwoHandsFisting = false;
             return;
         }
 
@@ -951,6 +962,9 @@ class ConstellationExperience {
         // 양손이 모두 감지되었는지 확인
         const bothHandsDetected = results.multiHandLandmarks.length === 2;
         
+        // 🔴 디버그: 감지된 손 정보 출력
+        console.log(`감지된 손 개수: ${results.multiHandLandmarks.length}`);
+        
         // 감지된 각 손 처리
         for (let i = 0; i < results.multiHandLandmarks.length; i++) {
             const landmarks = results.multiHandLandmarks[i];
@@ -958,14 +972,19 @@ class ConstellationExperience {
             const label = handedness.label;
             const score = handedness.score;
             
-            // 손 인덱스 결정 (Left = 0, Right = 1)
-            const handIndex = label === "Left" ? 0 : 1;
+            // 🔴 디버그: 각 손의 정보 출력
+            console.log(`손 ${i}: ${label}, 신뢰도: ${score.toFixed(2)}`);
             
-            if (score > 0.8) {
-                this.updateHandTracking(handIndex, landmarks, label);
+            // 🔴 MediaPipe는 selfieMode에서 좌우가 반전됨
+            // "Left"로 표시되는 손이 실제로는 오른손
+            const actualHandIndex = label === "Left" ? 1 : 0; // 반전
+            
+            if (score > 0.7) { // 신뢰도 임계값을 낮춤
+                this.updateHandTracking(actualHandIndex, landmarks, label);
                 
-                const pinchStatus = this.handStates[handIndex].isPinching ? '✊' : '✋';
-                statusText += `${label} 손 ${pinchStatus} `;
+                const pinchStatus = this.handStates[actualHandIndex].isPinching ? '✊' : '✋';
+                const actualLabel = actualHandIndex === 0 ? '왼손' : '오른손';
+                statusText += `${actualLabel} ${pinchStatus} `;
             }
         }
         
@@ -973,7 +992,7 @@ class ConstellationExperience {
         if (bothHandsDetected && this.isZoomed) {
             this.handleTwoHandsZoom();
         } else {
-            this.isTwoHandsPinching = false;
+            this.isTwoHandsFisting = false;
             this.initialPinchDistance = null;
         }
         
@@ -1000,46 +1019,120 @@ class ConstellationExperience {
                 );
                 
                 if (!this.isTwoHandsFisting) {
+                    // 줌 제스처 시작
                     this.isTwoHandsFisting = true;
                     this.initialFistDistance = distance;
-                    console.log('양손 주먹 줌 제스처 시작');
+                    
+                    // 🔴 중요: 현재 줌 레벨을 기준으로 시작
+                    this.baseZoom = this.currentZoom;
+                    
+                    console.log('양손 주먹 줌 모드 진입!');
+                    console.log('시작 줌 레벨:', this.baseZoom);
+                    
                     this.showZoomIndicator(true);
+                    this.createZoomModeEffect();
+                    
                 } else {
-                    // 거리 변화를 기반으로 줌 레벨 업데이트
+                    // 거리 비율 계산
                     const distanceRatio = distance / this.initialFistDistance;
-                    const targetZoom = this.currentZoom * distanceRatio;
-                    this.currentZoom = Math.max(this.minZoom, Math.min(this.maxZoom, targetZoom));
-                    this.initialFistDistance = distance;
+                    
+                    // 🔴 baseZoom을 기준으로 계산
+                    const targetZoom = this.baseZoom * distanceRatio;
+                    
+                    // 부드러운 전환
+                    this.currentZoom = this.smoothZoom(this.currentZoom, targetZoom, 0.3);
+                    this.currentZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.currentZoom));
                     
                     // 카메라 줌 적용
                     this.applyZoom();
-                    
-                    // 줌 레벨 표시 업데이트
                     this.updateZoomIndicator();
                 }
             } else {
-                // 줌 제스처 종료 시 현재 줌 레벨 저장
                 if (this.isTwoHandsFisting) {
+                    // 🔴 줌 종료 시 현재 상태 저장
                     if (this.isZoomed && this.currentDirection) {
                         const modelKey = `${this.currentDirection}_28`;
                         this.sessionZoomLevels[modelKey] = this.currentZoom;
-                        console.log(`${modelKey} 줌 레벨 저장: ${this.currentZoom.toFixed(2)}`);
+                        this.sessionCameraPositions[modelKey] = {
+                            x: this.camera.position.x,
+                            y: this.camera.position.y,
+                            z: this.camera.position.z
+                        };
+                        console.log(`${modelKey} 상태 저장 - 줌: ${this.currentZoom}, 위치: (${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)})`);
                     }
-                    console.log('양손 주먹 줌 제스처 종료');
+                    
                     this.showZoomIndicator(false);
                 }
                 this.isTwoHandsFisting = false;
                 this.initialFistDistance = null;
+                this.baseZoom = null;
             }
         } else {
+            if (this.isTwoHandsFisting) {
+                // 🔴 손이 사라져도 현재 상태 저장
+                if (this.isZoomed && this.currentDirection) {
+                    const modelKey = `${this.currentDirection}_28`;
+                    this.sessionZoomLevels[modelKey] = this.currentZoom;
+                    this.sessionCameraPositions[modelKey] = {
+                        x: this.camera.position.x,
+                        y: this.camera.position.y,
+                        z: this.camera.position.z
+                    };
+                }
+                this.showZoomIndicator(false);
+            }
             this.isTwoHandsFisting = false;
             this.initialFistDistance = null;
-            this.showZoomIndicator(false);
+            this.baseZoom = null;
         }
+    }
+
+    // 부드러운 줌을 위한 헬퍼 메서드 추가
+    smoothZoom(current, target, factor = 0.3) {
+        return current + (target - current) * factor;
+    }
+
+    // 줌 모드 진입 시각적 효과 추가
+    createZoomModeEffect() {
+        // 화면 가장자리에 줌 모드 표시
+        const zoomBorder = document.createElement('div');
+        zoomBorder.id = 'zoom-mode-border';
+        zoomBorder.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 999;
+            border: 4px solid rgba(255, 215, 0, 0.5);
+            box-shadow: inset 0 0 50px rgba(255, 215, 0, 0.2);
+            opacity: 0;
+        `;
+        
+        document.body.appendChild(zoomBorder);
+        
+        // 페이드 인 애니메이션
+        gsap.to(zoomBorder, {
+            opacity: 1,
+            duration: 0.3,
+            ease: "power2.out",
+            onComplete: () => {
+                // 펄스 효과
+                gsap.to(zoomBorder, {
+                    opacity: 0.5,
+                    duration: 1,
+                    repeat: -1,
+                    yoyo: true,
+                    ease: "sine.inOut"
+                });
+            }
+        });
     }
 
     showZoomIndicator(show) {
         const indicator = document.getElementById('zoom-indicator');
+        const zoomBorder = document.getElementById('zoom-mode-border');
         
         if (show && !indicator) {
             const div = document.createElement('div');
@@ -1049,19 +1142,20 @@ class ConstellationExperience {
                 top: 20%;
                 left: 50%;
                 transform: translateX(-50%);
-                background: rgba(0, 0, 0, 0.8);
+                background: rgba(0, 0, 0, 0.9);
                 color: white;
-                padding: 10px 20px;
-                border-radius: 20px;
-                font-size: 18px;
+                padding: 15px 30px;
+                border-radius: 30px;
+                font-size: 20px;
                 font-weight: bold;
                 z-index: 1000;
                 pointer-events: none;
-                border: 2px solid rgba(255, 255, 255, 0.3);
+                border: 3px solid rgba(255, 215, 0, 0.8);
+                box-shadow: 0 4px 20px rgba(255, 215, 0, 0.4);
             `;
             document.body.appendChild(div);
             
-            // 양손 주먹 아이콘도 표시
+            // 양손 주먹 아이콘
             const fistIcon = document.createElement('div');
             fistIcon.id = 'fist-icon';
             fistIcon.innerHTML = '👊 ↔️ 👊';
@@ -1070,32 +1164,60 @@ class ConstellationExperience {
                 top: 25%;
                 left: 50%;
                 transform: translateX(-50%);
-                font-size: 30px;
+                font-size: 40px;
                 z-index: 1000;
                 pointer-events: none;
+                animation: pulse 1s infinite;
             `;
             document.body.appendChild(fistIcon);
+            
+            // CSS 애니메이션 추가
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes pulse {
+                    0% { transform: translateX(-50%) scale(1); }
+                    50% { transform: translateX(-50%) scale(1.1); }
+                    100% { transform: translateX(-50%) scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
             
         } else if (!show) {
             if (indicator) indicator.remove();
             const fistIcon = document.getElementById('fist-icon');
             if (fistIcon) fistIcon.remove();
+            
+            // 줌 모드 테두리 제거
+            if (zoomBorder) {
+                gsap.to(zoomBorder, {
+                    opacity: 0,
+                    duration: 0.3,
+                    onComplete: () => zoomBorder.remove()
+                });
+            }
         }
     }
 
+    // updateZoomIndicator 메서드 수정
     updateZoomIndicator() {
         const indicator = document.getElementById('zoom-indicator');
         if (indicator) {
             const zoomPercent = Math.round(this.currentZoom * 100);
-            indicator.textContent = `줌: ${zoomPercent}%`;
+            indicator.innerHTML = `
+                <div style="font-size: 24px; margin-bottom: 5px;">줌: ${zoomPercent}%</div>
+                <div style="font-size: 14px; opacity: 0.8;">양손 간격을 조절하세요</div>
+            `;
             
             // 줌 레벨에 따라 색상 변경
             if (this.currentZoom > 1.5) {
                 indicator.style.borderColor = '#4ae24a'; // 초록색 (확대)
+                indicator.style.boxShadow = '0 4px 20px rgba(74, 226, 74, 0.4)';
             } else if (this.currentZoom < 0.7) {
                 indicator.style.borderColor = '#e24a4a'; // 빨간색 (축소)
+                indicator.style.boxShadow = '0 4px 20px rgba(226, 74, 74, 0.4)';
             } else {
-                indicator.style.borderColor = 'rgba(255, 255, 255, 0.3)'; // 기본
+                indicator.style.borderColor = 'rgba(255, 215, 0, 0.8)'; // 금색 (기본)
+                indicator.style.boxShadow = '0 4px 20px rgba(255, 215, 0, 0.4)';
             }
         }
     }
@@ -1103,25 +1225,51 @@ class ConstellationExperience {
     isFistGesture(landmarks) {
         if (!landmarks) return false;
         
-        // 손가락 끝과 손바닥 기준점 사이의 거리 계산
-        const palmBase = landmarks[0];  // 손목
-        const thumbTip = landmarks[4];
-        const indexTip = landmarks[8];
-        const middleTip = landmarks[12];
-        const ringTip = landmarks[16];
-        const pinkyTip = landmarks[20];
+        // 방법 1: 손가락 관절 각도로 판단 (더 정확함)
+        // 각 손가락의 MCP -> PIP -> DIP -> TIP 순서로 Y 좌표 비교
         
-        // 각 손가락이 손바닥에 가까이 있는지 확인
-        const threshold = 0.15;  // 거리 임계값
+        // 검지
+        const indexMCP = landmarks[5];
+        const indexPIP = landmarks[6];
+        const indexTIP = landmarks[8];
         
-        const thumbFolded = this.calculateLandmarkDistance(thumbTip, palmBase) < threshold;
-        const indexFolded = this.calculateLandmarkDistance(indexTip, palmBase) < threshold;
-        const middleFolded = this.calculateLandmarkDistance(middleTip, palmBase) < threshold;
-        const ringFolded = this.calculateLandmarkDistance(ringTip, palmBase) < threshold;
-        const pinkyFolded = this.calculateLandmarkDistance(pinkyTip, palmBase) < threshold;
+        // 중지
+        const middleMCP = landmarks[9];
+        const middlePIP = landmarks[10];
+        const middleTIP = landmarks[12];
         
-        // 모든 손가락이 접혀있으면 주먹
-        return indexFolded && middleFolded && ringFolded && pinkyFolded;
+        // 약지
+        const ringMCP = landmarks[13];
+        const ringPIP = landmarks[14];
+        const ringTIP = landmarks[16];
+        
+        // 소지
+        const pinkyMCP = landmarks[17];
+        const pinkyPIP = landmarks[18];
+        const pinkyTIP = landmarks[20];
+        
+        // 손가락이 구부러져 있는지 확인 (TIP이 MCP보다 아래에 있으면 구부러진 것)
+        const indexFolded = indexTIP.y > indexMCP.y - 0.05;
+        const middleFolded = middleTIP.y > middleMCP.y - 0.05;
+        const ringFolded = ringTIP.y > ringMCP.y - 0.05;
+        const pinkyFolded = pinkyTIP.y > pinkyMCP.y - 0.05;
+        
+        // 4개 중 3개 이상 접혀있으면 주먹으로 인식
+        const foldedCount = [indexFolded, middleFolded, ringFolded, pinkyFolded].filter(x => x).length;
+        const isFist = foldedCount >= 3;
+        
+        // 디버그
+        if (isFist) {
+            console.log('주먹 감지!', {
+                검지: indexFolded,
+                중지: middleFolded,
+                약지: ringFolded,
+                소지: pinkyFolded,
+                접힌개수: foldedCount
+            });
+        }
+        
+        return isFist;
     }
 
     calculateLandmarkDistance(landmark1, landmark2) {
@@ -1194,21 +1342,48 @@ class ConstellationExperience {
         // 제스처 분석
         const gestureInfo = this.analyzeGestures(handIndex, smoothedLandmarks);
         
-        // 패닝 중이면 업데이트 (_28 모델에서만)
-        if (this.isPanning && this.isZoomed && gestureInfo.isPinching) {
-            this.updatePanning(handIndex, gestureInfo);
-        }
+        // 핀치 상태 변화를 더 부드럽게 처리
+        const wasPinching = handState.isPinching;
+        const isPinchingNow = gestureInfo.isPinching;
         
-        // 핀치 상태 변화 감지
-        if (gestureInfo.isPinching && !handState.isPinching) {
-            // 쿨다운 체크
+        // 핀치 시작
+        if (isPinchingNow && !wasPinching) {
             const currentTime = Date.now();
             if (currentTime - handState.lastPinchTime > this.pinchCooldown) {
                 this.onPinchStart(handIndex, gestureInfo, smoothedLandmarks);
                 handState.lastPinchTime = currentTime;
             }
-        } else if (!gestureInfo.isPinching && handState.isPinching) {
+        }
+        // 핀치 종료
+        else if (!isPinchingNow && wasPinching) {
             this.onPinchEnd(handIndex);
+        }
+        // 핀치 중 (패닝 업데이트)
+        else if (isPinchingNow && wasPinching && this.isPanning && this.isZoomed) {
+            this.updatePanning(handIndex, gestureInfo);
+        }
+        
+        // 🔴 핀치 상태 변화 감지 - 디버그 추가
+        if (gestureInfo.isPinching && !handState.isPinching) {
+            console.log(`${handIndex === 0 ? '왼손' : '오른손'} 핀치 시작 감지!`);
+            
+            // 쿨다운 체크
+            const currentTime = Date.now();
+            if (currentTime - handState.lastPinchTime > this.pinchCooldown) {
+                console.log(`쿨다운 통과, onPinchStart 호출`);
+                this.onPinchStart(handIndex, gestureInfo, smoothedLandmarks);
+                handState.lastPinchTime = currentTime;
+            } else {
+                console.log(`쿨다운 중... ${this.pinchCooldown - (currentTime - handState.lastPinchTime)}ms 남음`);
+            }
+        } else if (!gestureInfo.isPinching && handState.isPinching) {
+            console.log(`${handIndex === 0 ? '왼손' : '오른손'} 핀치 종료 감지!`);
+            this.onPinchEnd(handIndex);
+        }
+        
+        // 패닝 중이면 업데이트 (_28 모델에서만)
+        if (this.isPanning && this.isZoomed && gestureInfo.isPinching) {
+            this.updatePanning(handIndex, gestureInfo);
         }
         
         // 연속적인 핀치 이펙트 (_28 모델이 아닐 때만)
@@ -1226,34 +1401,40 @@ class ConstellationExperience {
     updatePanning(handIndex, gestureInfo) {
         if (!this.isPanning || 
             this.panningHandIndex !== handIndex || 
-            !this.panStartPosition || 
-            !this.cameraStartPosition) {
+            !this.lastPanPosition ||
+            !this.currentModel) {
             return;
         }
         
+        // 현재 핀치 위치
         const currentPosition = {
             x: gestureInfo.pinchPosition.x,
             y: gestureInfo.pinchPosition.y
         };
         
-        const normalizedDeltaX = currentPosition.x - this.panStartPosition.x;
-        const normalizedDeltaY = currentPosition.y - this.panStartPosition.y;
+        // 이전 프레임 대비 이동량 (델타)
+        const deltaX = currentPosition.x - this.lastPanPosition.x;
+        const deltaY = currentPosition.y - this.lastPanPosition.y;
         
-        const zoomAdjustedSensitivity = this.panSensitivity / this.currentZoom;
+        // 델타를 월드 좌표로 변환
+        const worldDeltaX = deltaX * this.panSensitivity;
+        const worldDeltaY = -deltaY * this.panSensitivity; // Y축 반전
         
-        const cameraDeltaX = -normalizedDeltaX * zoomAdjustedSensitivity * 5.0;
-        const cameraDeltaY = normalizedDeltaY * zoomAdjustedSensitivity * 5.0;
+        // 모델 이동
+        this.currentModel.position.x += worldDeltaX;
+        this.currentModel.position.y += worldDeltaY;
         
-        let newCameraX = this.cameraStartPosition.x + cameraDeltaX;
-        let newCameraY = this.cameraStartPosition.y + cameraDeltaY;
+        // 현재 위치를 다음 프레임을 위해 저장
+        this.lastPanPosition = currentPosition;
         
-        // 패닝 범위 제한
-        newCameraX = Math.max(-this.maxPanRange, Math.min(this.maxPanRange, newCameraX));
-        newCameraY = Math.max(-this.maxPanRange, Math.min(this.maxPanRange, newCameraY));
-        
-        this.camera.position.x = newCameraX;
-        this.camera.position.y = newCameraY;
+        // 현재 모델의 위치를 저장
+        const modelKey = `${this.currentDirection}_28`;
+        this.modelWorldOffset[modelKey] = {
+            x: this.currentModel.position.x,
+            y: this.currentModel.position.y
+        };
     }
+
     
     stopPanning() {
         if (!this.isPanning) return;
@@ -1278,7 +1459,7 @@ class ConstellationExperience {
 
     smoothLandmarks(handIndex, landmarks) {
         const handState = this.handStates[handIndex];
-        const smoothingFactor = 0.2; // 더 강한 스무딩
+        const smoothingFactor = 0.3; // 0.2에서 0.3으로 증가 (덜 스무딩)
         
         if (!handState.smoothedLandmarks) {
             handState.smoothedLandmarks = landmarks.map(lm => ({...lm}));
@@ -1306,41 +1487,56 @@ class ConstellationExperience {
             pinchPosition: null
         };
         
-        // 엄지와 검지 끝 위치
-        const thumbTip = landmarks[4];
-        const indexTip = landmarks[8];
+        // 엄지와 검지의 모든 관절 위치 가져오기
+        const thumb = {
+            tip: landmarks[4],
+            ip: landmarks[3],
+            mcp: landmarks[2],
+            cmc: landmarks[1]
+        };
         
-        // 핀치 거리 계산 (화면 좌표 기준)
-        const screenDistance = Math.sqrt(
-            Math.pow(thumbTip.x - indexTip.x, 2) +
-            Math.pow(thumbTip.y - indexTip.y, 2)
+        const index = {
+            tip: landmarks[8],
+            dip: landmarks[7],
+            pip: landmarks[6],
+            mcp: landmarks[5]
+        };
+        
+        // 방법 1: 팁 끝점 간 거리 (기본)
+        const tipDistance = Math.sqrt(
+            Math.pow(thumb.tip.x - index.tip.x, 2) +
+            Math.pow(thumb.tip.y - index.tip.y, 2)
         );
         
-        // Z축 거리도 고려
-        const depthDistance = Math.abs(thumbTip.z - indexTip.z);
+        // 방법 2: 팁과 중간 관절 간 거리 (보조)
+        const crossDistance = Math.sqrt(
+            Math.pow(thumb.tip.x - index.pip.x, 2) +
+            Math.pow(thumb.tip.y - index.pip.y, 2)
+        );
         
-        // 전체 거리 (화면 거리를 더 중요하게)
-        const totalDistance = screenDistance + depthDistance * 0.5;
+        // 둘 중 작은 값 사용 (더 정확한 핀치 감지)
+        const minDistance = Math.min(tipDistance, crossDistance);
         
-        // 핀치 강도 계산 (임계값 조정)
-        const maxDistance = 0.08; // 더 큰 임계값
-        gestureInfo.pinchStrength = Math.max(0, 1 - (totalDistance / maxDistance));
-        gestureInfo.isPinching = gestureInfo.pinchStrength > 0.5; // 낮은 임계값
+        // 핀치 판정 (거리 기반)
+        const PINCH_THRESHOLD = 0.06; // 임계값
+        gestureInfo.isPinching = minDistance < PINCH_THRESHOLD;
         
-        // 디버그 정보
-        if (handIndex === 0 || handIndex === 1) {
-            const debugInfo = `Hand ${handIndex}: distance=${totalDistance.toFixed(3)}, strength=${gestureInfo.pinchStrength.toFixed(2)}, pinching=${gestureInfo.isPinching}`;
-            if (gestureInfo.pinchStrength > 0.3) {
-                console.log(debugInfo);
-            }
-        }
+        // 핀치 강도 (0~1)
+        gestureInfo.pinchStrength = gestureInfo.isPinching ? 
+            1.0 - (minDistance / PINCH_THRESHOLD) : 0;
         
-        // 핀치 위치 계산 (엄지와 검지 중간점)
+        // 핀치 위치 (엄지와 검지 중간)
         gestureInfo.pinchPosition = {
-            x: (thumbTip.x + indexTip.x) / 2,
-            y: (thumbTip.y + indexTip.y) / 2,
-            z: (thumbTip.z + indexTip.z) / 2
+            x: (thumb.tip.x + index.tip.x) / 2,
+            y: (thumb.tip.y + index.tip.y) / 2,
+            z: (thumb.tip.z + index.tip.z) / 2
         };
+        
+        // 디버그 정보 (핀치일 때만)
+        if (gestureInfo.isPinching || minDistance < PINCH_THRESHOLD * 1.5) {
+            const handLabel = handIndex === 0 ? '왼손' : '오른손';
+            console.log(`${handLabel} - 거리: ${minDistance.toFixed(3)}, 핀치: ${gestureInfo.isPinching}, 강도: ${gestureInfo.pinchStrength.toFixed(2)}`);
+        }
         
         return gestureInfo;
     }
@@ -1386,23 +1582,9 @@ class ConstellationExperience {
     applyZoom() {
         if (!this.isZoomed) return;
         
-        const baseZ = 1.5;
-        const newZ = baseZ / this.currentZoom;
+        console.log(`줌 적용: ${this.currentZoom}`);
         
-        gsap.to(this.camera.position, {
-            z: newZ,
-            duration: 0.1,
-            ease: "power2.out",
-            onComplete: () => {
-                // Z축 위치도 세션에 저장
-                if (this.currentDirection) {
-                    const modelKey = `${this.currentDirection}_28`;
-                    this.sessionCameraPositions[modelKey].z = this.camera.position.z;
-                }
-            }
-        });
-        
-        // FOV 조정
+        // FOV만 조정 (카메라 위치는 고정)
         const baseFOV = 75;
         const newFOV = baseFOV / Math.sqrt(this.currentZoom);
         
@@ -1415,6 +1597,7 @@ class ConstellationExperience {
             }
         });
     }
+
 
     // V 제스처 이펙트
     createVGestureEffect() {
@@ -1509,15 +1692,16 @@ class ConstellationExperience {
 
     onPinchStart(handIndex, gestureInfo, landmarks) {
         const handLabel = handIndex === 0 ? "왼손" : "오른손";
-        console.log(`${handLabel} 핀치 시작!`);
-        console.log(`핀치 위치: x=${gestureInfo.pinchPosition.x.toFixed(2)}, y=${gestureInfo.pinchPosition.y.toFixed(2)}`);
+        console.log(`=== ${handLabel} 핀치 시작! ===`);
+        console.log(`현재 모드: ${this.isZoomed ? '_28 모델' : '일반 모델'}`);
+        console.log(`현재 방향: ${this.currentDirection}`);
         
         // 핀치 시작 이펙트
         this.createPinchStartEffect(handIndex, gestureInfo);
         
         // _28 모델 상태 확인
         if (this.isZoomed) {
-            // _28 모델에서는 패닝 시작
+            console.log(`_28 모델에서 패닝 시작`);
             this.startPanning(handIndex, gestureInfo);
             return;
         }
@@ -1528,77 +1712,16 @@ class ConstellationExperience {
             gestureInfo.pinchPosition.y
         );
         
-        console.log(`선택된 영역: ${quadrant}`);
-        
-        // 디버깅용 시각화
-        this.visualizeQuadrantSelection(
-            gestureInfo.pinchPosition.x,
-            gestureInfo.pinchPosition.y,
-            quadrant
-        );
-        
-        // 선택 영역 하이라이트 표시
-        // this.createSelectionHighlight(quadrant);
+        console.log(`선택된 방향: ${quadrant}`);
         
         if (this.currentDirection === 'center') {
-            // 중앙에서 방향 선택
             this.switchModel(quadrant);
         } else if (this.currentDirection === quadrant && !this.isZoomed) {
-            // 같은 방향 다시 선택 시 _28 모델로 전환
             this.switchToZoomedModel(quadrant);
         } else {
-            // 다른 방향 선택
             this.switchModel(quadrant);
         }
     }
-
-    // createSelectionHighlight(quadrant) {
-    //     // 기존 하이라이트 제거
-    //     const existingHighlight = document.getElementById('quadrant-highlight');
-    //     if (existingHighlight) {
-    //         existingHighlight.remove();
-    //     }
-        
-    //     const highlight = document.createElement('div');
-    //     highlight.id = 'quadrant-highlight';
-        
-    //     // 각 영역의 클립 패스 정의
-    //     const clipPaths = {
-    //         north: 'polygon(50% 0%, 100% 0%, 50% 50%)',
-    //         east: 'polygon(0% 0%, 50% 0%, 50% 50%, 0% 50%)',
-    //         south: 'polygon(0% 100%, 50% 50%, 100% 100%)',
-    //         west: 'polygon(50% 50%, 100% 0%, 100% 100%)'
-    //     };
-        
-    //     const colors = {
-    //         north: 'rgba(226, 74, 74, 0.2)',   // 빨간색
-    //         east: 'rgba(74, 226, 74, 0.2)',    // 초록색
-    //         south: 'rgba(226, 165, 74, 0.2)',  // 주황색
-    //         west: 'rgba(74, 144, 226, 0.2)'    // 파란색
-    //     };
-        
-    //     highlight.style.cssText = `
-    //         position: fixed;
-    //         top: 0;
-    //         left: 0;
-    //         width: 100%;
-    //         height: 100%;
-    //         background: ${colors[quadrant]};
-    //         clip-path: ${clipPaths[quadrant]};
-    //         pointer-events: none;
-    //         z-index: 5;
-    //         transition: opacity 0.3s;
-    //     `;
-        
-    //     document.body.appendChild(highlight);
-        
-    //     // 일정 시간 후 페이드 아웃
-    //     setTimeout(() => {
-    //         highlight.style.opacity = '0';
-    //         setTimeout(() => highlight.remove(), 300);
-    //     }, 500);
-    // }
-
 
     startPanning(handIndex, gestureInfo) {
         if (!this.isZoomed) {
@@ -1613,21 +1736,16 @@ class ConstellationExperience {
         this.isPanning = true;
         this.panningHandIndex = handIndex;
         
-        // 시작 위치 저장 (핀치 위치)
-        this.panStartPosition = {
+        // 현재 핀치 위치를 시작점으로 저장
+        this.lastPanPosition = {
             x: gestureInfo.pinchPosition.x,
             y: gestureInfo.pinchPosition.y
         };
         
-        // 현재 카메라 위치 저장 (이미 패닝된 위치일 수 있음)
-        this.cameraStartPosition = {
-            x: this.camera.position.x,
-            y: this.camera.position.y
-        };
+        const handLabel = handIndex === 0 ? '왼손' : '오른손';
+        console.log(`${handLabel} 패닝 시작`);
         
-        console.log(`패닝 시작 - 카메라 위치: (${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)})`);
         this.showPanningIndicator(true);
-        this.showMessage('핀치를 유지하고 드래그하여 이동', 1500);
     }
 
     // 패닝 종료
@@ -1636,21 +1754,16 @@ class ConstellationExperience {
         console.log(`${handLabel} 핀치 종료`);
         
         if (this.isPanning && this.panningHandIndex === handIndex) {
-            // 현재 카메라 위치를 세션에 저장
-            if (this.isZoomed && this.currentDirection) {
-                const modelKey = `${this.currentDirection}_28`;
-                this.sessionCameraPositions[modelKey] = {
-                    x: this.camera.position.x,
-                    y: this.camera.position.y,
-                    z: this.camera.position.z
-                };
-                console.log(`${modelKey} 위치 저장: (${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)})`);
-            }
-            
+            // 패닝 종료
             this.isPanning = false;
-            this.panStartPosition = null;
-            this.cameraStartPosition = null;
-            console.log('패닝 종료');
+            this.lastPanPosition = null;
+            this.panningHandIndex = -1;
+            
+            // 최종 위치 확인 로그
+            if (this.currentModel && this.currentDirection) {
+                const modelKey = `${this.currentDirection}_28`;
+                console.log(`${modelKey} 최종 위치: (${this.modelWorldOffset[modelKey].x.toFixed(2)}, ${this.modelWorldOffset[modelKey].y.toFixed(2)})`);
+            }
             
             this.showPanningIndicator(false);
         }
@@ -1921,11 +2034,8 @@ class ConstellationExperience {
                 color: baseColor,
                 transparent: true,
                 opacity: 1.0 - i * 0.2,
-                side: THREE.DoubleSide,
-                emissive: baseColor,
-                emissiveIntensity: 1
+                side: THREE.DoubleSide
             });
-            
             const ring = new THREE.Mesh(ringGeometry, ringMaterial);
             ring.lookAt(this.camera.position);
             
@@ -1964,13 +2074,9 @@ class ConstellationExperience {
             const particleMaterial = new THREE.MeshBasicMaterial({
                 color: baseColor,
                 transparent: true,
-                opacity: 1,
-                emissive: baseColor,
-                emissiveIntensity: 2
+                opacity: 1
             });
-            
             const particle = new THREE.Mesh(particleGeometry, particleMaterial);
-            
             // 랜덤 방향 벡터 (속도도 줄임)
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.random() * Math.PI;
@@ -2123,9 +2229,7 @@ class ConstellationExperience {
         const glowMaterial = new THREE.MeshBasicMaterial({
             color: handIndex === 0 ? 0x00aaff : 0xff4444,
             transparent: true,
-            opacity: gestureInfo.pinchStrength * 0.5,
-            emissive: handIndex === 0 ? 0x00aaff : 0xff4444,
-            emissiveIntensity: 1
+            opacity: gestureInfo.pinchStrength * 0.5
         });
         
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
@@ -2370,6 +2474,23 @@ class ConstellationExperience {
     resetView() {
         console.log('뷰 리셋 시작');
         
+        // 모든 모델 위치 초기화
+        Object.keys(this.modelWorldOffset).forEach(key => {
+            this.modelWorldOffset[key] = { x: 0, y: 0 };
+        });
+        
+        // 모든 모델의 실제 위치도 초기화
+        Object.values(this.models).forEach(model => {
+            if (model) {
+                model.position.set(0, 0, 0);
+            }
+        });
+        
+        // 패닝 상태 초기화
+        this.isPanning = false;
+        this.lastPanPosition = null;
+        this.panningHandIndex = -1;
+
         this.isExpanded = false;
         this.selectedSeason = null;
         this.selectedConstellation = null;
