@@ -179,8 +179,8 @@ class ConstellationExperience {
         this.isTwoHandsFisting = false;  // 양손 주먹 상태
         this.initialFistDistance = null;
         this.currentZoom = 1.0;
-        this.minZoom = 0.3;      // 더 많이 축소 가능
-        this.maxZoom = 3.0;      // 더 많이 확대 가능
+        this.minZoom = 0.5;      // 더 많이 축소 가능
+        this.maxZoom = 5.0;      // 더 많이 확대 가능
         this.zoomSensitivity = 0.005;  // 감도 조정
         this.zoomVelocity = 0;   // 줌 속도 (부드러운 줌을 위해)
         this.baseZoom = null;  // 줌 시작 시점의 줌 레벨 추가
