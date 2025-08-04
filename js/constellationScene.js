@@ -49,8 +49,8 @@ ConstellationApp.scene = {
             0.1, 
             1000
         );
-        // 🔧 카메라 위치를 더 멀리 이동
-        this.camera.position.set(0, 5, 10);
+        // 카메라를 더 멀리서 정면으로 바라보게 설정
+        this.camera.position.set(0, 0, 50);
         this.camera.lookAt(0, 0, 0);
         
         // 렌더러 생성
@@ -93,74 +93,52 @@ ConstellationApp.scene = {
     
     // 천상열차분야지도 모델 생성
     createStarMap: function() {
-        const loader = new THREE.GLTFLoader();
-        
-        // 메인 중앙 모델 로드
+        const loader = new THREE.SVGLoader();
+        // SVG 파일 경로 (GLB와 동일한 이름, 확장자만 svg)
+        const svgPath = 'models/ChonSangYolChaBunYaJiDo_Plat_Center.svg';
         loader.load(
-            'models/ChonSangYolChaBunYaJiDo_Plat_Center.glb',
-            (gltf) => {
-                this.starMap = gltf.scene;
-                
-                // 🔧 모델 크기 및 위치 조정 (필요시 수정하세요)
-                this.starMap.scale.set(0.01, 0.01, 0.01);   // 매우 작게 시작
-                this.starMap.position.set(0, 0, 0);         // 중앙 위치
-                this.starMap.rotation.x = 0;                // 회전
-                
-                // 메인 모델 경계 상자 계산해서 크기 확인
-                const box = new THREE.Box3().setFromObject(this.starMap);
+            svgPath,
+            (data) => {
+                const paths = data.paths;
+                const group = new THREE.Group();
+                paths.forEach((path) => {
+                    const material = new THREE.MeshBasicMaterial({
+                        color: path.color,
+                        side: THREE.DoubleSide,
+                        depthWrite: false
+                    });
+                    const shapes = path.toShapes(true);
+                    shapes.forEach((shape) => {
+                        const geometry = new THREE.ShapeGeometry(shape);
+                        const mesh = new THREE.Mesh(geometry, material);
+                        group.add(mesh);
+                    });
+                });
+                // 중앙 정렬 및 스케일 자동 조정
+                const box = new THREE.Box3().setFromObject(group);
                 const size = box.getSize(new THREE.Vector3());
                 const center = box.getCenter(new THREE.Vector3());
-                
-                console.log('메인 모델 원본 크기:', size);
-                console.log('메인 모델 중심점:', center);
-                
-                // 모델을 화면에 맞는 크기로 자동 조정
-                const maxDimension = Math.max(size.x, size.y, size.z);
-                let targetScale = 2.0 / maxDimension; // 화면에 적당히 보이도록
-                
-                // 최소/최대 스케일 제한
-                targetScale = Math.max(0.001, Math.min(10, targetScale));
-                
-                this.starMap.scale.set(targetScale, targetScale, targetScale);
-                
-                // 모델 중심을 원점으로 이동
-                this.starMap.position.sub(center.multiplyScalar(targetScale));
-                
-                console.log('적용된 스케일:', targetScale);
-                console.log('조정된 위치:', this.starMap.position);
-                
-                // 재질 설정
-                this.starMap.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        
-                        // 기본 재질을 금속성 재질로 변경
-                        if (child.material) {
-                            child.material = new THREE.MeshPhysicalMaterial({
-                                color: child.material.color || 0x8B7355,
-                                metalness: 0.3,
-                                roughness: 0.7,
-                                clearcoat: 0.1
-                            });
-                        }
-                    }
-                });
-                
-                this.scene.add(this.starMap);
-                console.log('메인 천상열차분야지도 모델 로딩 완료');
-                
+                // 씬에 맞는 최대 크기(대각선 기준 6~8 정도)에 맞춰 스케일
+                const maxDim = Math.max(size.x, size.y);
+                const targetSize = 8.0;
+                const scale = targetSize / maxDim;
+                group.scale.set(scale, scale, scale);
+                group.position.set(-center.x * scale, -center.y * scale, 0);
+                this.starMap = group;
+                this.scene.add(group);
+                console.log('SVG group children count:', group.children.length);
                 // 로딩 화면 숨기기
                 const loadingScreen = document.getElementById('loadingScreen');
                 if (loadingScreen) {
                     loadingScreen.classList.add('hidden');
                 }
+                console.log('SVG 별자리 지도 로딩 완료');
             },
             (progress) => {
-                console.log('메인 모델 로딩 진행률:', (progress.loaded / progress.total * 100) + '%');
+                console.log('SVG 로딩 진행률:', (progress.loaded / progress.total * 100) + '%');
             },
             (error) => {
-                console.error('메인 천상열차분야지도 모델 로딩 실패:', error);
+                console.error('SVG 별자리 지도 로딩 실패:', error);
                 this.createFallbackStarMap();
                 const loadingScreen = document.getElementById('loadingScreen');
                 if (loadingScreen) {
@@ -168,115 +146,62 @@ ConstellationApp.scene = {
                 }
             }
         );
-        
         // 계절별 모델들도 로드
         this.loadSeasonalModels();
     },
     
     // 계절별 모델 로딩 함수 추가
     loadSeasonalModels: function() {
-        const loader = new THREE.GLTFLoader();
-        
-        // 계절별 모델 파일 매핑
+        const loader = new THREE.SVGLoader();
+        // 계절별 SVG 파일 매핑
         const seasonalModels = {
-            spring: 'models/ChonSangYolChaBunYaJiDo_Plat_East.glb',   // 동방 = 봄
-            summer: 'models/ChonSangYolChaBunYaJiDo_Plat_South.glb',  // 남방 = 여름
-            autumn: 'models/ChonSangYolChaBunYaJiDo_Plat_West.glb',   // 서방 = 가을
-            winter: 'models/ChonSangYolChaBunYaJiDo_Plat_North.glb'   // 북방 = 겨울
+            spring: 'models/ChonSangYolChaBunYaJiDo_Plat_East.svg',   // 동방 = 봄
+            summer: 'models/ChonSangYolChaBunYaJiDo_Plat_South.svg',  // 남방 = 여름
+            autumn: 'models/ChonSangYolChaBunYaJiDo_Plat_West.svg',   // 서방 = 가을
+            winter: 'models/ChonSangYolChaBunYaJiDo_Plat_North.svg'   // 북방 = 겨울
         };
-        
-        // 계절별 모델 저장소 초기화
         this.seasonalModels = {};
-        
-        // 각 계절별 모델 로드
         Object.keys(seasonalModels).forEach(season => {
-            const modelPath = seasonalModels[season];
-            
+            const svgPath = seasonalModels[season];
             loader.load(
-                modelPath,
-                (gltf) => {
-                    const seasonModel = gltf.scene;
-                    
-                    // 🔧 계절별 모델 크기 및 위치 조정 (필요시 수정하세요)
-                    seasonModel.scale.set(0.01, 0.01, 0.01); // 매우 작게 시작
-                    seasonModel.position.set(0, 0, 0);
-                    seasonModel.rotation.set(0, 0, 0);
-                    seasonModel.visible = false; // 처음에는 숨김
-                    
-                    // 모델 경계 상자 계산해서 크기 확인
-                    const box = new THREE.Box3().setFromObject(seasonModel);
+                svgPath,
+                (data) => {
+                    const paths = data.paths;
+                    const group = new THREE.Group();
+                    paths.forEach((path) => {
+                        const material = new THREE.MeshBasicMaterial({
+                            color: path.color,
+                            side: THREE.DoubleSide,
+                            depthWrite: false
+                        });
+                        const shapes = path.toShapes(true);
+                        shapes.forEach((shape) => {
+                            const geometry = new THREE.ShapeGeometry(shape);
+                            const mesh = new THREE.Mesh(geometry, material);
+                            group.add(mesh);
+                        });
+                    });
+                    // 중앙 정렬 및 스케일 자동 조정
+                    const box = new THREE.Box3().setFromObject(group);
                     const size = box.getSize(new THREE.Vector3());
                     const center = box.getCenter(new THREE.Vector3());
-                    
-                    console.log(`${season} 모델 원본 크기:`, size);
-                    console.log(`${season} 모델 중심점:`, center);
-                    
-                    // 모델을 화면에 맞는 크기로 자동 조정
-                    const maxDimension = Math.max(size.x, size.y, size.z);
-                    let targetScale = 2.0 / maxDimension; // 화면에 적당히 보이도록
-                    
-                    // 최소/최대 스케일 제한
-                    targetScale = Math.max(0.001, Math.min(10, targetScale));
-                    
-                    seasonModel.scale.set(targetScale, targetScale, targetScale);
-                    
-                    // 모델 중심을 원점으로 이동
-                    seasonModel.position.sub(center.multiplyScalar(targetScale));
-                    
-                    console.log(`${season} 적용된 스케일:`, targetScale);
-                    
-                    // 재질 설정
-                    seasonModel.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                            
-                            if (child.material) {
-                                child.material = new THREE.MeshPhysicalMaterial({
-                                    color: child.material.color || 0x8B7355,
-                                    metalness: 0.3,
-                                    roughness: 0.7,
-                                    clearcoat: 0.1
-                                });
-                            }
-                        }
-                    });
-                    
-                    // 씬에 추가
-                    this.scene.add(seasonModel);
-                    
-                    // 계절별 모델 저장
-                    this.seasonalModels[season] = seasonModel;
-                    
-                    console.log(`${season} 계절 모델 로딩 완료: ${modelPath}`);
+                    const maxDim = Math.max(size.x, size.y);
+                    const targetSize = 8.0;
+                    const scale = targetSize / maxDim;
+                    group.scale.set(scale, scale, scale);
+                    group.position.set(-center.x * scale, -center.y * scale, 0);
+                    group.visible = false; // 처음에는 숨김
+                    this.scene.add(group);
+                    this.seasonalModels[season] = group;
+                    console.log(`${season} SVG 모델 로딩 완료`);
                 },
-                (progress) => {
-                    console.log(`${season} 모델 로딩 진행률:`, (progress.loaded / progress.total * 100) + '%');
-                },
+                undefined,
                 (error) => {
-                    console.error(`${season} 모델 로딩 실패:`, error);
+                    console.error(`${season} SVG 모델 로딩 실패:`, error);
                 }
             );
         });
     },
-    
-    // 대체 천상열차분야지도 생성 (모델 로딩 실패 시)
-    createFallbackStarMap: function() {
-        const geometry = new THREE.CylinderGeometry(3, 3, 0.1, 32);
-        const material = new THREE.MeshPhysicalMaterial({
-            color: 0x8B7355,
-            metalness: 0.3,
-            roughness: 0.7
-        });
-        
-        this.starMap = new THREE.Mesh(geometry, material);
-        this.starMap.position.set(0, 0, 0);
-        this.scene.add(this.starMap);
-        this.starMapLoaded = true;
-        
-        console.log('대체 천상열차분야지도 생성 완료');
-    },
-    
     // 별자리 생성
     createConstellations: function() {
         const data = ConstellationApp.constellationData;
@@ -344,38 +269,38 @@ ConstellationApp.scene = {
     },
     
     // 개별 별 생성
-    createStar: function(starData, baseColor) {
-        const geometry = new THREE.SphereGeometry(0.03 * starData.brightness, 16, 16);
+    // createStar: function(starData, baseColor) {
+    //     const geometry = new THREE.SphereGeometry(0.03 * starData.brightness, 16, 16);
         
-        // 별의 재질 - 발광 효과
-        const material = new THREE.MeshBasicMaterial({
-            color: baseColor,
-            transparent: true,
-            opacity: 0.8
-        });
+    //     // 별의 재질 - 발광 효과
+    //     const material = new THREE.MeshBasicMaterial({
+    //         color: baseColor,
+    //         transparent: true,
+    //         opacity: 0.8
+    //     });
         
-        // 발광 효과를 위한 추가 구체
-        const glowGeometry = new THREE.SphereGeometry(0.05 * starData.brightness, 16, 16);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: baseColor,
-            transparent: true,
-            opacity: 0.3
-        });
+    //     // 발광 효과를 위한 추가 구체
+    //     const glowGeometry = new THREE.SphereGeometry(0.05 * starData.brightness, 16, 16);
+    //     const glowMaterial = new THREE.MeshBasicMaterial({
+    //         color: baseColor,
+    //         transparent: true,
+    //         opacity: 0.3
+    //     });
         
-        const star = new THREE.Mesh(geometry, material);
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    //     const star = new THREE.Mesh(geometry, material);
+    //     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
         
-        star.position.set(starData.x, starData.y, starData.z);
-        glow.position.copy(star.position);
+    //     star.position.set(starData.x, starData.y, starData.z);
+    //     glow.position.copy(star.position);
         
-        // 그룹으로 묶어서 반환
-        const starGroup = new THREE.Group();
-        starGroup.add(star);
-        starGroup.add(glow);
-        starGroup.position.set(starData.x, starData.y, starData.z);
+    //     // 그룹으로 묶어서 반환
+    //     const starGroup = new THREE.Group();
+    //     starGroup.add(star);
+    //     starGroup.add(glow);
+    //     starGroup.position.set(starData.x, starData.y, starData.z);
         
-        return starGroup;
-    },
+    //     return starGroup;
+    // },
     
     // 별자리 연결선 생성
     createConnection: function(start, end, color) {
@@ -532,37 +457,37 @@ ConstellationApp.scene = {
     },
     
     // 별자리 하이라이트
-    highlightConstellationGroup: function(direction) {
-        // 모든 별자리 그룹이 존재하는지 확인
-        if (!this.constellationGroups || Object.keys(this.constellationGroups).length === 0) {
-            console.log('별자리 그룹이 아직 생성되지 않음');
-            return;
-        }
+    // highlightConstellationGroup: function(direction) {
+    //     // 모든 별자리 그룹이 존재하는지 확인
+    //     if (!this.constellationGroups || Object.keys(this.constellationGroups).length === 0) {
+    //         console.log('별자리 그룹이 아직 생성되지 않음');
+    //         return;
+    //     }
         
-        // 모든 별자리 원래대로
-        Object.keys(this.constellationGroups).forEach(key => {
-            const group = this.constellationGroups[key];
-            if (group) {
-                group.traverse((child) => {
-                    if (child.material && typeof child.material.emissive !== 'undefined') {
-                        child.material.emissive.setHex(0x000000);
-                        child.material.opacity = 0.8;
-                    }
-                });
-            }
-        });
+    //     // 모든 별자리 원래대로
+    //     Object.keys(this.constellationGroups).forEach(key => {
+    //         const group = this.constellationGroups[key];
+    //         if (group) {
+    //             group.traverse((child) => {
+    //                 // if (child.material && typeof child.material.emissive !== 'undefined') {
+    //                 //     child.material.emissive.setHex(0x000000);
+    //                 //     child.material.opacity = 0.8;
+    //                 // }
+    //             });
+    //         }
+    //     });
         
-        // 선택된 그룹 하이라이트
-        if (direction && this.constellationGroups[direction]) {
-            const group = this.constellationGroups[direction];
-            group.traverse((child) => {
-                if (child.material && typeof child.material.emissive !== 'undefined') {
-                    child.material.emissive.setHex(0xffff00);
-                    child.material.opacity = 1.0;
-                }
-            });
-        }
-    },
+    //     // 선택된 그룹 하이라이트
+    //     if (direction && this.constellationGroups[direction]) {
+    //         const group = this.constellationGroups[direction];
+    //         group.traverse((child) => {
+    //             // if (child.material && typeof child.material.emissive !== 'undefined') {
+    //             //     child.material.emissive.setHex(0xffff00);
+    //             //     child.material.opacity = 1.0;
+    //             // }
+    //         });
+    //     }
+    // },
     
     // 별자리 확장 애니메이션
     expandConstellation: function(constellation) {
