@@ -92,56 +92,6 @@
             font-size: 12px;
         }
     </style>
-
-    <script>
-        // 디버깅 함수들
-        function showDebugPanel() {
-            document.getElementById('debug-panel').style.display = 'block';
-        }
-
-        function toggleDebugPanel() {
-            const panel = document.getElementById('debug-panel');
-            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-        }
-
-        function updateDebugInfo(message) {
-            const content = document.getElementById('debug-content');
-            const timestamp = new Date().toLocaleTimeString();
-            content.innerHTML += `<br>[${timestamp}] ${message}`;
-            content.scrollTop = content.scrollHeight;
-        }
-
-        // SVG 파일 존재 여부 확인
-        async function checkSVGFiles() {
-            const paths = [
-                './models/ChonSangYolChaBunYaJiDo_Plat_Center.svg',
-                'models/ChonSangYolChaBunYaJiDo_Plat_Center.svg',
-                '/models/ChonSangYolChaBunYaJiDo_Plat_Center.svg'
-            ];
-            
-            for (const path of paths) {
-                try {
-                    const response = await fetch(path, { method: 'HEAD' });
-                    updateDebugInfo(`✅ ${path}: ${response.status}`);
-                    if (response.ok) {
-                        updateDebugInfo(`🎯 사용 가능한 경로 발견: ${path}`);
-                        return path;
-                    }
-                } catch (error) {
-                    updateDebugInfo(`❌ ${path}: ${error.message}`);
-                }
-            }
-            
-            updateDebugInfo('❌ 모든 SVG 경로 실패');
-            return null;
-        }
-
-        // 페이지 로드 시 SVG 파일 확인
-        window.addEventListener('load', () => {
-            showDebugPanel();
-            checkSVGFiles();
-        });
-        </script>
     </head>
 <body>
     <div id="container">
@@ -169,28 +119,6 @@
             <div id="loading-details" style="font-size: 14px; color: #aaa;"></div>
         </div>
         
-        <!-- 디버깅 패널 추가 -->
-        <div id="debug-panel" style="
-            position: absolute;
-            top: 200px;
-            left: 20px;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: monospace;
-            font-size: 11px;
-            z-index: 100;
-            max-width: 300px;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-        ">
-            <h4>SVG 로딩 디버그</h4>
-            <div id="debug-content">디버그 정보가 여기에 표시됩니다.</div>
-            <button onclick="toggleDebugPanel()">닫기</button>
-        </div>
-
         <video id="video" autoplay playsinline muted></video>
 
         <div id="ui">
