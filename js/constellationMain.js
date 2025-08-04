@@ -234,6 +234,7 @@ class ConstellationExperience {
         this.cameraStartPosition = null;
         this.maxPanRange = 3.0;
         this.panSensitivity = 2.0;
+        this.panOffset = { x: 0, y: 0 };  // 패닝 오프셋 초기화
 
         this.lastPanPosition = null;  // 마지막 패닝 위치 저장
         this.modelWorldOffset = {      // 월드 좌표계에서의 모델 오프셋
@@ -997,12 +998,14 @@ class ConstellationExperience {
             }
         }
         
-        // 양손 줌 제스처 처리 (_28 모델이 활성화된 경우에만)
-        if (bothHandsDetected && this.isZoomed) {
+        // 양손 줌 제스처 처리 (항상 활성화, 하지만 양손 주먹일 때만)
+        if (bothHandsDetected) {
             this.handleTwoHandsZoom();
         } else {
-            this.isTwoHandsFisting = false;
-            this.initialPinchDistance = null;
+            // 한 손만 감지되거나 손이 없을 때는 줌 모드 해제
+            if (this.isTwoHandsFisting) {
+                this.endTwoHandsZoom();
+            }
         }
         
         // V 제스처 감지 (_28 모델이 활성화된 경우에만)
@@ -1017,15 +1020,27 @@ class ConstellationExperience {
         const leftHand = this.handStates[0];
         const rightHand = this.handStates[1];
         
+        console.log(`양손 줌 체크: 왼손 visible=${leftHand.isVisible}, 오른손 visible=${rightHand.isVisible}`);
+        
         if (leftHand.isVisible && rightHand.isVisible) {
             const leftFist = this.isFistGesture(leftHand.smoothedLandmarks);
             const rightFist = this.isFistGesture(rightHand.smoothedLandmarks);
             
+            console.log(`주먹 감지: 왼손=${leftFist}, 오른손=${rightFist}`);
+            
             if (leftFist && rightFist) {
+                // 🔴 양손 주먹 감지 시 팬 모드 강제 종료
+                if (this.isPanning) {
+                    this.stopPanning();
+                    console.log('팬 모드 강제 종료');
+                }
+                
                 const distance = this.calculateHandsDistance(
                     leftHand.position,
                     rightHand.position
                 );
+                
+                console.log(`양손 거리: ${distance.toFixed(3)}`);
                 
                 if (!this.isTwoHandsFisting) {
                     // 줌 제스처 시작
@@ -1035,8 +1050,9 @@ class ConstellationExperience {
                     // 🔴 중요: 현재 줌 레벨을 기준으로 시작
                     this.baseZoom = this.currentZoom;
                     
-                    console.log('양손 주먹 줌 모드 진입!');
+                    console.log('✅ 양손 주먹 줌 모드 진입!');
                     console.log('시작 줌 레벨:', this.baseZoom);
+                    console.log('초기 거리:', this.initialFistDistance);
                     
                     this.showZoomIndicator(true);
                     this.createZoomModeEffect();
@@ -1057,43 +1073,39 @@ class ConstellationExperience {
                     this.updateZoomIndicator();
                 }
             } else {
+                // 한 손이라도 주먹이 아니면 줌 종료
                 if (this.isTwoHandsFisting) {
-                    // 🔴 줌 종료 시 현재 상태 저장
-                    if (this.isZoomed && this.currentDirection) {
-                        const modelKey = `${this.currentDirection}_28`;
-                        this.sessionZoomLevels[modelKey] = this.currentZoom;
-                        this.sessionCameraPositions[modelKey] = {
-                            x: this.camera.position.x,
-                            y: this.camera.position.y,
-                            z: this.camera.position.z
-                        };
-                        console.log(`${modelKey} 상태 저장 - 줌: ${this.currentZoom}, 위치: (${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)})`);
-                    }
-                    
-                    this.showZoomIndicator(false);
+                    this.endTwoHandsZoom();
                 }
-                this.isTwoHandsFisting = false;
-                this.initialFistDistance = null;
-                this.baseZoom = null;
             }
         } else {
+            // 한 손이라도 보이지 않으면 줌 종료
             if (this.isTwoHandsFisting) {
-                // 🔴 손이 사라져도 현재 상태 저장
-                if (this.isZoomed && this.currentDirection) {
-                    const modelKey = `${this.currentDirection}_28`;
-                    this.sessionZoomLevels[modelKey] = this.currentZoom;
-                    this.sessionCameraPositions[modelKey] = {
-                        x: this.camera.position.x,
-                        y: this.camera.position.y,
-                        z: this.camera.position.z
-                    };
-                }
-                this.showZoomIndicator(false);
+                this.endTwoHandsZoom();
             }
-            this.isTwoHandsFisting = false;
-            this.initialFistDistance = null;
-            this.baseZoom = null;
         }
+    }
+
+    // 양손 줌 종료 메서드 분리
+    endTwoHandsZoom() {
+        console.log('양손 줌 모드 종료');
+        
+        // 🔴 줌 종료 시 현재 상태 저장
+        if (this.isZoomed && this.currentDirection) {
+            const modelKey = `${this.currentDirection}_28`;
+            this.sessionZoomLevels[modelKey] = this.currentZoom;
+            this.sessionCameraPositions[modelKey] = {
+                x: this.camera.position.x,
+                y: this.camera.position.y,
+                z: this.camera.position.z
+            };
+            console.log(`${modelKey} 상태 저장 - 줌: ${this.currentZoom}, 위치: (${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)})`);
+        }
+        
+        this.showZoomIndicator(false);
+        this.isTwoHandsFisting = false;
+        this.initialFistDistance = null;
+        this.baseZoom = null;
     }
 
     // 부드러운 줌을 위한 헬퍼 메서드 추가
@@ -1258,14 +1270,15 @@ class ConstellationExperience {
         const pinkyTIP = landmarks[20];
         
         // 손가락이 구부러져 있는지 확인 (TIP이 MCP보다 아래에 있으면 구부러진 것)
-        const indexFolded = indexTIP.y > indexMCP.y - 0.05;
-        const middleFolded = middleTIP.y > middleMCP.y - 0.05;
-        const ringFolded = ringTIP.y > ringMCP.y - 0.05;
-        const pinkyFolded = pinkyTIP.y > pinkyMCP.y - 0.05;
+        // 임계값을 더 관대하게 조정 (0.05 -> 0.08)
+        const indexFolded = indexTIP.y > indexMCP.y - 0.08;
+        const middleFolded = middleTIP.y > middleMCP.y - 0.08;
+        const ringFolded = ringTIP.y > ringMCP.y - 0.08;
+        const pinkyFolded = pinkyTIP.y > pinkyMCP.y - 0.08;
         
-        // 4개 중 3개 이상 접혀있으면 주먹으로 인식
+        // 4개 중 2개 이상 접혀있으면 주먹으로 인식 (더 관대하게 변경)
         const foldedCount = [indexFolded, middleFolded, ringFolded, pinkyFolded].filter(x => x).length;
-        const isFist = foldedCount >= 3;
+        const isFist = foldedCount >= 2;
         
         // 디버그
         if (isFist) {
@@ -1356,8 +1369,8 @@ class ConstellationExperience {
         const wasPinching = handState.isPinching;
         const isPinchingNow = gestureInfo.isPinching;
         
-        // 핀치 시작
-        if (isPinchingNow && !wasPinching) {
+        // 핀치 시작 - 단, 양손 줌 모드가 아닐 때만
+        if (isPinchingNow && !wasPinching && !this.isTwoHandsFisting) {
             const currentTime = Date.now();
             if (currentTime - handState.lastPinchTime > this.pinchCooldown) {
                 this.onPinchStart(handIndex, gestureInfo, smoothedLandmarks);
@@ -1368,13 +1381,13 @@ class ConstellationExperience {
         else if (!isPinchingNow && wasPinching) {
             this.onPinchEnd(handIndex);
         }
-        // 핀치 중 (패닝 업데이트)
-        else if (isPinchingNow && wasPinching && this.isPanning && this.isZoomed) {
+        // 핀치 중 (패닝 업데이트) - 단, 양손 줌 모드가 아닐 때만
+        else if (isPinchingNow && wasPinching && this.isPanning && this.isZoomed && !this.isTwoHandsFisting) {
             this.updatePanning(handIndex, gestureInfo);
         }
         
-        // 🔴 핀치 상태 변화 감지 - 디버그 추가
-        if (gestureInfo.isPinching && !handState.isPinching) {
+        // 🔴 핀치 상태 변화 감지 - 양손 줌 모드가 아닐 때만
+        if (gestureInfo.isPinching && !handState.isPinching && !this.isTwoHandsFisting) {
             console.log(`${handIndex === 0 ? '왼손' : '오른손'} 핀치 시작 감지!`);
             
             // 쿨다운 체크
@@ -1391,13 +1404,13 @@ class ConstellationExperience {
             this.onPinchEnd(handIndex);
         }
         
-        // 패닝 중이면 업데이트 (_28 모델에서만)
-        if (this.isPanning && this.isZoomed && gestureInfo.isPinching) {
+        // 패닝 중이면 업데이트 (_28 모델에서만, 양손 줌 모드가 아닐 때만)
+        if (this.isPanning && this.isZoomed && gestureInfo.isPinching && !this.isTwoHandsFisting) {
             this.updatePanning(handIndex, gestureInfo);
         }
         
-        // 연속적인 핀치 이펙트 (_28 모델이 아닐 때만)
-        if (gestureInfo.isPinching && !this.isZoomed) {
+        // 연속적인 핀치 이펙트 (_28 모델이 아닐 때만, 양손 줌 모드가 아닐 때만)
+        if (gestureInfo.isPinching && !this.isZoomed && !this.isTwoHandsFisting) {
             this.updateContinuousPinchEffect(handIndex, gestureInfo, smoothedLandmarks);
         }
         
@@ -1449,7 +1462,7 @@ class ConstellationExperience {
     stopPanning() {
         if (!this.isPanning) return;
         
-        console.log(`패닝 종료 - 최종 오프셋: X=${this.panOffset.x.toFixed(2)}, Y=${this.panOffset.y.toFixed(2)}`);
+        console.log(`패닝 종료 - 최종 오프셋: X=${this.currentModel.position.x.toFixed(2)}, Y=${this.currentModel.position.y.toFixed(2)}`);
         
         this.isPanning = false;
         this.panningHandIndex = -1;
@@ -1588,15 +1601,15 @@ class ConstellationExperience {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    // 줌 적용
+    // 줌 적용 - 조건 제거하여 언제든지 줌 가능하도록 수정
     applyZoom() {
-        if (!this.isZoomed) return;
-        
-        console.log(`줌 적용: ${this.currentZoom}`);
+        console.log(`줌 적용: ${this.currentZoom}, isZoomed: ${this.isZoomed}`);
         
         // FOV만 조정 (카메라 위치는 고정)
         const baseFOV = 75;
         const newFOV = baseFOV / Math.sqrt(this.currentZoom);
+        
+        console.log(`FOV 변경: ${this.camera.fov} -> ${newFOV}`);
         
         gsap.to(this.camera, {
             fov: Math.max(20, Math.min(120, newFOV)),

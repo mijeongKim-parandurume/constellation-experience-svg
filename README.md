@@ -87,8 +87,11 @@ constellation-experience-svg/
 
 #### **Two-Hand Zoom**
 
-- **Double Fist Gesture**: Use both hands in fist position
-- **Move Apart/Together**: Zoom in/out of the star map
+- **Double Fist Gesture**: Make fists with both hands simultaneously
+- **Move Apart/Together**:
+  - Move hands apart to zoom in
+  - Move hands closer together to zoom out
+- **Note**: This works at any time, not just when already zoomed in
 
 #### **Reset View**
 
@@ -236,6 +239,24 @@ const FIST_THRESHOLD = 0.7;
 
 - MediaPipe hand tracking requires HTTPS in production
 - Some mobile browsers may have limited support
+
+### Troubleshooting
+
+#### Two-Hand Zoom Not Working
+
+If the two-hand zoom (double fist) gesture is causing panning instead of zooming:
+
+1. **Ensure Both Hands Are Visible**: Both hands must be clearly visible to the camera
+2. **Make Proper Fists**: Close both hands into fists simultaneously - open palms won't trigger zoom
+3. **Lighting**: Ensure adequate lighting for proper hand detection
+4. **Distance**: Keep hands at appropriate distance from camera (arm's length)
+5. **Clear the Area**: Make sure there are no objects interfering with hand detection
+
+#### If Zoom Still Doesn't Work
+
+- Refresh the page and try again
+- Check browser console for any error messages
+- Ensure you're using a supported browser (Chrome 88+ recommended)
 
 ## 🛠️ Development
 
